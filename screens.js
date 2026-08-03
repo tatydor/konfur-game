@@ -3,6 +3,7 @@
 // каждый экран оставляет игроку промежуточный итог и кнопку дальше.
 
 import { el, tpl } from "./dom.js";
+import { resetDependentOnTask } from "./data.js";
 
 const HYP_MAX = 220; // предел длины гипотезы
 
@@ -72,24 +73,28 @@ function step0(ctx) {
   wrap.appendChild(header({ title: t.title, intro: t.intro }));
 
   const error = el("div", { class: "error" });
-  const ownField = el("textarea", {
-    class: "own-field",
-    placeholder: t.ownFieldPlaceholder,
-    style: state.task === "own" ? "" : "display:none"
-  });
+
+  // Поле своей задачи с честным объяснением, без обещания адаптации.
+  const ownWrap = el("div", { class: "own-wrap", style: state.task === "own" ? "" : "display:none" });
+  const ownField = el("textarea", { class: "own-field", placeholder: t.ownFieldPlaceholder });
   ownField.value = state.ownTaskText || "";
   ownField.addEventListener("input", () => { state.ownTaskText = ownField.value; ctx.update(); });
+  ownWrap.append(el("p", { class: "own-explain" }, t.ownExplain), ownField);
 
   const cards = el("div", { class: "cards" });
   for (const task of content.tasks) {
     const card = el("button", {
       class: "card" + (state.task === task.id ? " selected" : ""),
+      "aria-pressed": state.task === task.id ? "true" : "false",
       onclick: () => {
+        // Смена задачи сбрасывает зависимые данные старой ветки.
+        if (state.task !== task.id) resetDependentOnTask(state);
         state.task = task.id;
         ctx.update();
-        [...cards.children].forEach((c) => c.classList.remove("selected"));
+        [...cards.children].forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
         card.classList.add("selected");
-        ownField.style.display = task.id === "own" ? "" : "none";
+        card.setAttribute("aria-pressed", "true");
+        ownWrap.style.display = task.id === "own" ? "" : "none";
         error.textContent = "";
       }
     },
@@ -102,18 +107,13 @@ function step0(ctx) {
   const awareness = choiceRow(
     [{ id: "yes", label: t.awarenessYes }, { id: "no", label: t.awarenessNo }],
     state.awarenessBefore,
-    (id) => { state.awarenessBefore = id; ctx.update(); }
+    (id) => { state.awarenessBefore = id; ctx.update(); error.textContent = ""; }
   );
-
-  const nameInput = el("input", { class: "text-field", type: "text", placeholder: t.nameHint });
-  nameInput.value = state.name || "";
-  nameInput.addEventListener("input", () => { state.name = nameInput.value; ctx.update(); });
 
   wrap.append(
     cards,
-    ownField,
+    ownWrap,
     fieldset(t.awarenessQuestion, awareness),
-    fieldset(t.nameLabel, nameInput),
     error,
     nav(ctx, {
       nextLabel: t.button,
@@ -122,7 +122,9 @@ function step0(ctx) {
         if (state.task === "own" && !state.ownTaskText.trim()) {
           error.textContent = content.system.emptyRequired; return;
         }
+        if (!state.awarenessBefore) { error.textContent = t.awarenessRequired; return; }
         ctx.storage.track("task_chosen", { runId: state.runId, task: state.task });
+        ctx.storage.track("knows_before", { runId: state.runId, value: state.awarenessBefore });
         ctx.next();
       }
     })

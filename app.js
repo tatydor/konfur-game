@@ -2,7 +2,7 @@
 // Держит состояние прохождения, переносит его между экранами, сохраняет
 // прогресс и восстанавливает после перезагрузки/обрыва связи.
 
-import content, { flow, createInitialState } from "./data.js";
+import content, { flow, createInitialState, SCHEMA_VERSION } from "./data.js";
 import * as storage from "./storage.js";
 import { screens } from "./screens.js";
 import { el, tpl } from "./dom.js";
@@ -10,10 +10,13 @@ import { el, tpl } from "./dom.js";
 const root = document.getElementById("app");
 
 // Восстановление: если есть сохранённый прогресс — продолжаем оттуда.
+// Несовместимую по версии схемы сессию не восстанавливаем, начинаем заново.
 const saved = storage.loadProgress();
-let state = saved?.state ?? createInitialState();
-let screen = saved?.screen ?? flow[0];
-let resuming = Boolean(saved) && screen !== flow[0]; // показать баннер один раз
+const validSaved = saved && saved.state && saved.state.schemaVersion === SCHEMA_VERSION ? saved : null;
+if (saved && !validSaved) storage.clearProgress();
+let state = validSaved?.state ?? createInitialState();
+let screen = validSaved?.screen ?? flow[0];
+let resuming = Boolean(validSaved) && screen !== flow[0]; // показать баннер один раз
 
 if (!saved) storage.track("game_start", { runId: state.runId });
 
@@ -31,6 +34,11 @@ function persist() {
 function go(id) {
   if (!screens[id]) return;
   screen = id;
+  state.currentStep = id;
+  state.updatedAt = Date.now();
+  state.stepStartedAt = Date.now();
+  if (id !== flow[0] && state.status === "new") state.status = "started";
+  if (id === "final") state.status = "finished";
   resuming = false;
   persist();
   storage.track("screen", { runId: state.runId, screen });

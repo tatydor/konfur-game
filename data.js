@@ -51,8 +51,8 @@ export const tasks = [
   },
   {
     id: "own",
-    title: "Моя задача сюда не влезла",
-    card: "Опиши в двух словах, дальше игра подстроится.",
+    title: "Хочу разобрать другую задачу",
+    card: "Запишем сейчас, общий маршрут покажем в игре, подробный разбор — со стендистом.",
     seed: "Если внедрим решение для задачи, которую ты описал, то получим результат за срок благодаря механизму. Замени на своё.",
     tools: ["llm", "rag", "dify"], // VERIFY:highlight
     example: "Решение отработало на первом случае. Часть результата придётся проверить руками.",
@@ -127,11 +127,11 @@ export const ui = {
     intro: "Пять шагов, три минуты, ноль созвонов. Выбери задачу, которая у тебя болит, и посмотрим, что в Контуре под неё уже готово.",
     ownFieldLabel: "Что за задача",
     ownFieldPlaceholder: "например, свести данные из трёх систем в один отчёт",
+    ownExplain: "Запишем её сейчас, общий маршрут покажем в игре, а подробный разбор продолжим со стендистом.",
     awarenessQuestion: "Знаешь, с чего начать такой пилот?",
     awarenessYes: "Да",
     awarenessNo: "Нет",
-    nameLabel: "Как тебя зовут",
-    nameHint: "пригодится только для финальной карточки",
+    awarenessRequired: "Ответь на вопрос, чтобы начать",
     counterTemplate: "До финала дошли {n} человек", // показываем, если появится хранилище
     button: "Запустить пилот →"
   },
@@ -256,16 +256,24 @@ export const system = {
 //    Признак корзины гипотезы (нетронутая / поправленная / своя)
 //    отдельно не хранится, а выводится при разборе из seedShown и finalText.
 // ─────────────────────────────────────────────────────────────
+// Версия структуры состояния. При несовпадении старое сохранение не восстанавливаем.
+export const SCHEMA_VERSION = 2;
+
 export function createInitialState() {
+  const now = Date.now();
   return {
+    schemaVersion: SCHEMA_VERSION,
     runId: newRunId(),   // анонимный идентификатор прохождения
+    status: "new",       // new | started | finished
+    currentStep: "step0",
     task: null,          // id выбранной задачи
     ownTaskText: "",     // если выбрана «своя»
     awarenessBefore: null, // ответ базового вопроса на входе: "yes" | "no"
-    name: "",            // необязательно
+    name: "",            // не используется в интерфейсе, оставлено для совместимости
     hypothesis: {
       seedShown: "",       // показанная заготовка (для разбора корзины)
       finalText: "",       // итоговый текст гипотезы
+      edited: false,       // признак содержательного редактирования
       resultChoice: null,  // id из resultOptions
       criterionChoice: null // id из criterionOptions
     },
@@ -274,11 +282,29 @@ export function createInitialState() {
       gaps: []           // id из gapOptions
     },
     step3Choice: null,   // "enough" | "refine"
+    publishChannel: null, // выбранный канал публикации (шаг 4)
     step5Choice: null,   // "fix" | "scale" | "stop"
+    finalVariant: null,  // вычисляется из step5Choice
     awarenessAfter: null, // ответ на финале: "yes" | "no"
     nextStepText: "",    // необязательно
-    contact: ""          // необязательно
+    contact: "",         // необязательно
+    createdAt: now,
+    updatedAt: now,
+    stepStartedAt: now
   };
+}
+
+// Сброс данных, зависящих от выбранной задачи. Вызывается при смене задачи,
+// чтобы новая ветка не наследовала гипотезу, инструменты и решения старой.
+export function resetDependentOnTask(state) {
+  state.hypothesis = { seedShown: "", finalText: "", edited: false, resultChoice: null, criterionChoice: null };
+  state.tools = { selected: [], gaps: [] };
+  state.step3Choice = null;
+  state.publishChannel = null;
+  state.step5Choice = null;
+  state.finalVariant = null;
+  state.awarenessAfter = null;
+  state.nextStepText = "";
 }
 
 // Анонимный идентификатор прохождения. Ничего личного, только для связи событий.
