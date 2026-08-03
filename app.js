@@ -5,7 +5,7 @@
 import content, { flow, createInitialState } from "./data.js";
 import * as storage from "./storage.js";
 import { screens } from "./screens.js";
-import { el } from "./dom.js";
+import { el, tpl } from "./dom.js";
 
 const root = document.getElementById("app");
 
@@ -18,7 +18,6 @@ let resuming = Boolean(saved) && screen !== flow[0]; // показать бан�
 if (!saved) storage.track("game_start", { runId: state.runId });
 
 // Номер шага для индикатора и баннера восстановления.
-// step1..step5 → «Шаг 1..5»; вход, финал и анкета — вне нумерации шагов.
 function stepLabel(id) {
   const map = { step1: 1, step2: 2, step3: 3, step4: 4, step5: 5 };
   return map[id] ?? null;
@@ -54,24 +53,19 @@ function restart() {
   render();
 }
 
-// Контекст, который получает каждый экран.
+// Контекст, который получает каждый экран. state — через геттер,
+// чтобы после restart экраны видели новый объект.
 const ctx = {
   content,
-  state,
   storage,
   next,
   back,
   go,
   restart,
-  update, // сохранить изменения состояния из экрана
+  update: persist, // экран изменил состояние — сохранить прогресс
+  get state() { return state; },
   get screen() { return screen; }
 };
-
-// Экран пишет в состояние и просит сохранить прогресс.
-function update() {
-  ctx.state = state;
-  persist();
-}
 
 function progressBar() {
   const n = stepLabel(screen);
@@ -84,29 +78,33 @@ function progressBar() {
 
 function resumeBanner() {
   const n = stepLabel(screen);
-  const where = n ? `шаге ${n}` : "прошлом месте";
-  const text = content.system.resumeTemplate
-    ? content.system.resumeTemplate.replace("{n}", n ?? "")
-    : `Ты остановился на ${where}. Продолжаем оттуда.`;
-  return el("div", { class: "resume" }, n ? text : `Продолжаем оттуда, где остановился.`);
+  const text = n
+    ? tpl(content.system.resumeTemplate, { n })
+    : "Продолжаем оттуда, где остановился.";
+  return el("div", { class: "resume" }, text);
 }
 
 function render() {
   root.innerHTML = "";
   const view = el("div", { class: "screen", "data-screen": screen });
-
   if (stepLabel(screen)) view.appendChild(progressBar());
   if (resuming) view.appendChild(resumeBanner());
-
-  const body = screens[screen](ctx);
-  view.appendChild(body);
+  view.appendChild(screens[screen](ctx));
   root.appendChild(view);
-
-  // Наверх при смене экрана.
   window.scrollTo(0, 0);
 }
 
-// Автосохранение при уходе со страницы — страховка от обрыва связи.
+// Обрыв связи: прогресс уже сохранён локально, показываем спокойный баннер.
+const offlineBar = el("div", { class: "offline-bar" }, content.system.offline);
+document.body.appendChild(offlineBar);
+function updateOnline() {
+  offlineBar.classList.toggle("show", typeof navigator !== "undefined" && navigator.onLine === false);
+}
+window.addEventListener("online", updateOnline);
+window.addEventListener("offline", updateOnline);
+updateOnline();
+
+// Автосохранение при уходе со страницы — страховка от обрыва.
 window.addEventListener("beforeunload", persist);
 
 render();
