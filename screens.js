@@ -3,7 +3,7 @@
 // каждый экран оставляет игроку промежуточный итог и кнопку дальше.
 
 import { el, tpl } from "./dom.js";
-import { resetDependentOnTask } from "./data.js";
+import { resetDependentOnTask, buildHypothesis } from "./data.js";
 
 const HYP_MAX = 220; // предел длины гипотезы
 
@@ -137,41 +137,72 @@ function step1(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step1;
   const task = content.taskById[state.task];
+  const h = state.hypothesis;
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  state.hypothesis.seedShown = task.seed;
-  if (!state.hypothesis.finalText) state.hypothesis.finalText = task.seed;
-  ctx.update();
+  if (!h.seedShown) h.seedShown = task.seed;
 
-  wrap.appendChild(el("p", { class: "formula" }, t.formulaPreview));
-
+  // Живое превью гипотезы: собирается из выбора результата и критерия,
+  // пока игрок не начал править текст руками (тогда правка ведёт превью).
+  const preview = el("p", { class: "formula" });
+  const editWrap = el("div", { class: "edit-wrap", style: h.edited ? "" : "display:none" });
   const area = el("textarea", { class: "own-field big", maxlength: HYP_MAX });
-  area.value = state.hypothesis.finalText;
   const charcount = el("div", { class: "charcount" });
-  function onEdit() {
-    state.hypothesis.finalText = area.value;
-    ctx.update();
+  const warn = el("p", { class: "warn" }, t.privacyWarning);
+  editWrap.append(area, charcount, warn);
+
+  function updateCharcount() {
     const left = HYP_MAX - area.value.length;
     charcount.textContent = left <= 40 ? tpl(content.system.charsLeftTemplate, { n: left }) : "";
   }
-  area.addEventListener("input", onEdit);
+  function syncPreview() {
+    if (!h.edited) {
+      h.finalText = (h.resultChoice || h.criterionChoice)
+        ? buildHypothesis(state.task, h.resultChoice, h.criterionChoice)
+        : h.seedShown;
+      area.value = h.finalText;
+    }
+    preview.textContent = h.finalText;
+    ctx.update();
+  }
+  area.value = h.finalText || h.seedShown;
+  area.addEventListener("input", () => {
+    h.finalText = area.value; h.edited = true; ctx.update();
+    preview.textContent = h.finalText; updateCharcount();
+  });
 
-  const writeOwn = el("button", { class: "linklike", onclick: () => { area.value = ""; onEdit(); area.focus(); } }, t.writeOwnLink);
-  const warn = el("p", { class: "warn" }, t.privacyWarning);
+  function maybeTrackBuilt() {
+    if (h.resultChoice && h.criterionChoice)
+      ctx.storage.track("hypothesis_built", { runId: state.runId, result: h.resultChoice, criterion: h.criterionChoice });
+  }
+  const result = choiceRow(content.resultOptions, h.resultChoice,
+    (id) => { h.resultChoice = id; syncPreview(); maybeTrackBuilt(); });
+  const criterion = choiceRow(content.criterionOptions, h.criterionChoice,
+    (id) => { h.criterionChoice = id; syncPreview(); maybeTrackBuilt(); });
 
-  const result = choiceRow(content.resultOptions, state.hypothesis.resultChoice,
-    (id) => { state.hypothesis.resultChoice = id; ctx.update(); });
-  const criterion = choiceRow(content.criterionOptions, state.hypothesis.criterionChoice,
-    (id) => { state.hypothesis.criterionChoice = id; ctx.update(); });
+  function openEdit(fromScratch) {
+    if (fromScratch) { area.value = ""; h.finalText = ""; }
+    else { area.value = h.finalText; }
+    h.edited = true; ctx.update();
+    editWrap.style.display = "";
+    preview.textContent = h.finalText;
+    updateCharcount();
+    area.focus();
+  }
+  const refine = el("button", { class: "linklike", onclick: () => openEdit(false) }, t.refineLink);
+  const writeOwn = el("button", { class: "linklike", onclick: () => openEdit(true) }, t.writeOwnLink);
 
   wrap.append(
-    area, charcount, writeOwn, warn,
+    preview,
     fieldset(t.resultLegend, result),
     fieldset(t.criterionLegend, criterion),
+    el("div", { class: "edit-actions" }, refine, writeOwn),
+    editWrap,
     nav(ctx, { nextLabel: t.button })
   );
-  onEdit();
+  syncPreview();
+  updateCharcount();
   return wrap;
 }
 
