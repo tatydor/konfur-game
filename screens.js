@@ -3,7 +3,7 @@
 // каждый экран оставляет игроку промежуточный итог и кнопку дальше.
 
 import { el, tpl } from "./dom.js";
-import { resetDependentOnTask, buildHypothesis } from "./data.js";
+import { resetDependentOnTask, buildHypothesis, buildShareText } from "./data.js";
 
 const HYP_MAX = 220; // предел длины гипотезы
 
@@ -575,9 +575,11 @@ function final(ctx) {
   const v = f.variants[key] || f.variants.scale;
   const wrap = el("div");
 
+  // У своей задачи в заголовок идёт введённый текст, а не заглушка карточки.
+  const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
   const title = state.name
-    ? tpl(v.cardTitleNamedTemplate, { name: state.name, task: task.title })
-    : tpl(v.cardTitleTemplate, { task: task.title });
+    ? tpl(v.cardTitleNamedTemplate, { name: state.name, task: taskLabel })
+    : tpl(v.cardTitleTemplate, { task: taskLabel });
 
   const toolNames = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
     .map((id) => content.toolById[id]?.name).filter(Boolean);
@@ -615,6 +617,42 @@ function final(ctx) {
     el("div", { class: "code-value" }, code),
     el("div", { class: "muted" }, f.codeHint)
   ));
+
+  // Забрать итог с собой: копирование собранной карточки в буфер. Ниже кода,
+  // выше ссылок. Запасной путь — поле с выделенным текстом при отказе clipboard.
+  const shareText = buildShareText(state);
+  const copyBtn = el("button", { class: "primary wide", onclick: onCopy }, f.copyButton);
+  const copyHint = el("div", { class: "muted", style: "display:none" }, f.copyFallbackHint);
+  const copyField = el("textarea", {
+    class: "copy-fallback", readonly: true, rows: "9", "aria-label": f.copyFallbackHint, style: "display:none"
+  });
+  copyField.value = shareText;
+  let copyTimer = null;
+  function flashDone() {
+    copyBtn.textContent = f.copyDone;
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => { copyBtn.textContent = f.copyButton; }, 2000);
+  }
+  function revealField() {
+    copyField.style.display = ""; copyHint.style.display = "";
+    copyField.focus(); copyField.select();
+  }
+  function tryLegacy() {   // execCommand требует выделения и живёт внутри жеста
+    copyField.style.display = ""; copyField.focus(); copyField.select();
+    try { return !!(document.execCommand && document.execCommand("copy")); } catch { return false; }
+  }
+  function onCopy() {
+    // Метрика — доля дошедших, кто нажал копирование: одно событие на сессию.
+    if (!state.copied) { state.copied = true; ctx.update(); ctx.storage.track("summary_copied", {}); }
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(shareText).then(() => { copyField.style.display = "none"; copyHint.style.display = "none"; flashDone(); }).catch(revealField);
+    } else if (tryLegacy()) {
+      copyField.style.display = "none"; copyHint.style.display = "none"; flashDone();
+    } else {
+      revealField();
+    }
+  }
+  wrap.appendChild(el("div", { class: "copy-block" }, copyBtn, copyHint, copyField));
 
   // Рабочие призывы к действию: семантические ссылки, новая вкладка, учёт нажатий.
   const ctas = el("div", { class: "ctas" });

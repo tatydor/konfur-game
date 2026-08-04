@@ -396,6 +396,15 @@ export const final = {
   standHandoff: "Покажи этот экран стендисту и получи подарок.",
   codeLabel: "Твой код",
   codeHint: "Он подтверждает, что игра пройдена.",
+  // Забрать итог с собой: кнопка копирует собранную карточку пилота в буфер.
+  copyButton: "Скопировать итог",
+  copyDone: "Скопировано",
+  copyFallbackHint: "Выдели и скопируй",
+  // Ник дежурного статичный, как в блоке ссылок. Держим одним значением.
+  dutyNick: "@srs_aiplatform_duty",
+  shareTitleTemplate: "Пилот под задачу «{task}»",
+  shareNextStep: "С чего начать: написать дежурному по ИИ-платформе {duty} или в канал ии-в-бизнесе.",
+  shareToolsLine: "Инструменты платформы: wiki.skbkontur.ru, страница «Инструменты ИИ-платформы».",
   // Рабочие ссылки на реальные адреса Контура. Канала новостей платформы нет,
   // поэтому третья ссылка ведёт в srs_support к дежурному по платформе.
   ctas: [
@@ -456,7 +465,7 @@ export const system = {
 export const SCHEMA_VERSION = 2;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.6.3";
+export const GAME_VERSION = "0.6.4";
 
 export function createInitialState() {
   const now = Date.now();
@@ -487,6 +496,7 @@ export function createInitialState() {
     nextStepText: "",    // необязательно
     contact: "",         // необязательно
     contactSent: false,  // контакт уже отправлен — не спрашиваем повторно
+    copied: false,       // нажал ли «Скопировать итог» на финале (для сводки/метрики)
     createdAt: now,
     updatedAt: now,
     stepStartedAt: now
@@ -504,6 +514,7 @@ export function resetDependentOnTask(state) {
   state.finalVariant = null;
   state.awarenessAfter = null;
   state.nextStepText = "";
+  state.copied = false;
 }
 
 // Анонимный идентификатор прохождения. Ничего личного, только для связи событий.
@@ -545,8 +556,49 @@ export function buildSummary(state, answers = []) {
     gaps: gaps.join(", "),
     answer1: answers[0] || "",
     answer2: answers[1] || "",
+    copied: state.copied ? "yes" : "no",   // нажал ли «Скопировать итог» на финале
     ts: Date.now()
   };
+}
+
+// Человекочитаемое название задачи: у своей — введённый текст, не заглушка карточки.
+function taskLabelOf(state, task) {
+  return state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
+}
+
+// Первая буква строчной — для вставки значения в середину строки после «Канал: ».
+function lowerFirst(s) {
+  return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
+// Собранная карточка пилота для буфера обмена (правка «Унести гипотезу с собой»).
+// Только из имеющегося состояния, без новых полей. Имя игрока не включаем: текст
+// человек отправляет себе или руководителю. Ник дежурного и ссылки — из final.
+export function buildShareText(state) {
+  const task = taskById[state.task];
+  if (!task) return "";
+  const label = taskLabelOf(state, task);
+  const hyp = state.hypothesis.finalText || buildHypothesis(
+    state.task,
+    state.hypothesis.resultChoice || task.defaultResult,
+    state.hypothesis.criterionChoice || task.defaultCriterion,
+    state.ownTaskText.trim()
+  );
+  const toolNames = (state.tools.selected.length ? state.tools.selected : (taskTools[state.task]?.reco || []))
+    .map((id) => toolById[id]?.name).filter(Boolean);
+  const channel = state.publishChannel ? channelById[state.publishChannel]?.name : null;
+  const key = state.finalVariant || state.step5Choice;
+  const resultShort = key ? final.variants[key]?.resultShort : null;
+  const decision = key ? final.decisionLabels[key] : null;
+
+  const lines = [final.shareTitleTemplate.replace("{task}", label), ""];
+  lines.push(`${final.cardHypothesisLabel}: ${hyp}`, "");
+  if (toolNames.length) lines.push(`${final.cardToolsLabel}: ${toolNames.join(", ")}`);
+  if (channel) lines.push(`${final.cardChannelLabel}: ${lowerFirst(channel)}`);
+  if (resultShort) lines.push(`${final.cardResultLabel}: ${resultShort}`);
+  if (decision) lines.push(`${final.cardDecisionLabel}: ${lowerFirst(decision)}`);
+  lines.push("", final.shareNextStep.replace("{duty}", final.dutyNick), final.shareToolsLine);
+  return lines.join("\n");
 }
 
 // Удобный доступ к задаче по id.
@@ -557,7 +609,7 @@ export const channelById = Object.fromEntries(channels.map((c) => [c.id, c]));
 // Единый объект контента, если удобнее импортировать одним куском.
 export const content = {
   tasks, taskById,
-  resultOptions, criterionOptions, taskAction, buildHypothesis, buildSummary,
+  resultOptions, criterionOptions, taskAction, buildHypothesis, buildSummary, buildShareText,
   tools, toolById, taskTools, gapOptions,
   channels, channelById, taskChannels,
   step3Consequence, criterionMetrics, step5Consequence,

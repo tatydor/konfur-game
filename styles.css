@@ -291,6 +291,8 @@ a.cta:hover { border-color: var(--accent); }
 a.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cta-title { font-weight: 600; color: var(--accent); }
 .cta-sub { color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
+.copy-block { margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
+.copy-fallback { width: 100%; box-sizing: border-box; font-family: var(--font-text); font-size: 0.9rem; line-height: 1.4; padding: 10px 12px; border-radius: 10px; resize: vertical; }
 .contact-form { display: flex; flex-direction: column; gap: 8px; }
 .contact-form .cta-sub { margin: 0 0 2px; }
 .contact-row { display: flex; gap: 8px; }
