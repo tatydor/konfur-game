@@ -1,15 +1,18 @@
-/* Мобайл-фёрст, тёмная тема. Шрифт Tektur: заголовки 800, подзаголовки 600, текст 400. */
+/* Мобайл-фёрст, тёмная тема. Tektur — заголовки, игровые метки и акценты;
+   длинные пояснения — спокойным системным гротеском. */
 :root {
   --bg: #132F5A;
   --surface: #1B3B6B;
   --surface-2: #234A7F;
   --line: #315889;
   --text: #F2F7FE;
-  --muted: #A9BEDC;
+  --muted: #B7C9E3;              /* приподнят для контраста на тёмном фоне */
   --accent: #8FEAF2;
   --accent-ink: #0A2340;
   --danger: #FF9B9B;
   --radius: 14px;
+  --font-display: "Tektur", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -17,21 +20,50 @@ html, body { margin: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: "Tektur", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-text);
+  font-size: 16px;              /* базовый размер не меньше 16px */
   font-weight: 400;
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;           /* страховка от горизонтальной прокрутки */
 }
+
+/* Заголовки, игровые метки, кнопки и короткие акценты — шрифтом Tektur. */
+h1, .loc, .card-title, .legend, .badge, .metric-value, .code-value, .node-dot,
+.cta-title, .chain-name, .tool-name, .channel-name, .stand-handoff, .done,
+button.primary, button.ghost, .choice, .build { font-family: var(--font-display); }
 
 #app {
   max-width: 560px;
   margin: 0 auto;
-  padding: 22px 16px 48px;
+  /* Безопасные отступы вокруг вырезов и системных панелей. */
+  padding:
+    max(22px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(48px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
   min-height: 100vh;
 }
 
+/* Заметный фокус на тёмном фоне для всех интерактивных элементов. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Не растягивать длинные строки на всю ширину крупного экрана. */
+.intro, .own-explain, .channel-scenario, .tool-explain, .req-list, .hints, .cta-sub { max-width: 62ch; }
+.card-desc, .callout, .consequence, .reco-line { overflow-wrap: break-word; }
+
 .screen { animation: fade 0.2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Уважать системную настройку «меньше движения». */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Карта пути: пять названных узлов */
 .pathmap { display: flex; margin-bottom: 18px; }
@@ -53,8 +85,8 @@ body {
 .node.done .node-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .node.current .node-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .node-label {
-  font-size: 0.66rem; line-height: 1.15; text-align: center; color: var(--muted);
-  max-width: 100%; padding: 0 2px;
+  font-size: clamp(0.55rem, 2.6vw, 0.66rem); line-height: 1.1; text-align: center;
+  color: var(--muted); max-width: 100%; padding: 0 1px; overflow-wrap: anywhere;
 }
 .node.current .node-label { color: var(--text); font-weight: 600; }
 .node.done .node-label { color: var(--muted); }
@@ -106,7 +138,7 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 
 /* Поля */
 .field { margin: 18px 0; }
-.legend { font-weight: 600; margin-bottom: 8px; }
+.legend { display: block; font-weight: 600; margin-bottom: 8px; }
 .text-field, .own-field {
   width: 100%;
   background: var(--surface);
@@ -118,12 +150,13 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 }
 .own-field { min-height: 72px; margin-bottom: 6px; resize: vertical; }
 .own-field.big { min-height: 96px; }
-.text-field:focus, .own-field:focus { outline: none; border-color: var(--accent); }
+.text-field:focus, .own-field:focus { border-color: var(--accent); }
 .formula { color: var(--muted); font-size: 0.9rem; margin: 0 0 10px; }
 .charcount { color: var(--danger); font-size: 0.82rem; min-height: 1.1em; }
 .warn { color: var(--muted); font-size: 0.86rem; border-left: 3px solid var(--danger); padding-left: 10px; margin: 8px 0 4px; }
 .linklike {
-  background: none; border: none; padding: 0; margin: 2px 0 4px;
+  background: none; border: none; padding: 6px 0; margin: 2px 0;
+  min-height: 44px; display: inline-flex; align-items: center;
   color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer;
 }
 .hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
@@ -132,6 +165,8 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 /* Выбор из вариантов */
 .choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .choice {
+  min-height: 44px;                       /* достаточная область нажатия */
+  display: inline-flex; align-items: center;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -142,8 +177,10 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
   transition: background 0.12s, border-color 0.12s;
 }
 .choice:hover { border-color: var(--accent); }
-.choice.small { padding: 6px 13px; font-size: 0.9rem; }
+.choice.small { padding: 8px 14px; font-size: 0.9rem; }
+/* Выбранное состояние — не только цветом: заливка, обводка и галочка. */
 .choice.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.choice[aria-pressed="true"]::before { content: "✓ "; font-weight: 700; }
 
 /* Инструменты */
 .tool-list { display: grid; gap: 10px; margin: 14px 0; }
@@ -191,6 +228,7 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 /* Шаг 4: каналы публикации */
 .reco-line { color: var(--text); background: var(--surface); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; margin: 6px 0 12px; }
 .channel-card {
+  display: block; width: 100%; text-align: left; font: inherit; color: var(--text);
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
 }
@@ -267,14 +305,16 @@ a.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 24px; }
 .nav .primary { margin-left: auto; }
 button.primary {
+  min-height: 44px;
   background: var(--accent); color: var(--accent-ink);
   border: none; border-radius: 12px; padding: 13px 22px;
   font: inherit; font-weight: 600; cursor: pointer; transition: opacity 0.12s, transform 0.05s;
 }
 button.primary:hover { opacity: 0.92; }
 button.primary:active { transform: scale(0.98); }
-button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 button.ghost {
+  min-height: 44px;
   background: transparent; color: var(--muted);
   border: 1px solid var(--line); border-radius: 12px; padding: 13px 18px;
   font: inherit; cursor: pointer;
@@ -287,7 +327,8 @@ button.restart { display: block; margin: 24px auto 0; }
 .offline-bar {
   position: fixed; left: 0; right: 0; bottom: 0;
   background: var(--danger); color: #3a0d0d;
-  text-align: center; padding: 10px; font-size: 0.9rem; font-weight: 600;
+  text-align: center; font-size: 0.9rem; font-weight: 600;
+  padding: 10px 10px max(10px, env(safe-area-inset-bottom));
   transform: translateY(100%); transition: transform 0.2s;
 }
 .offline-bar.show { transform: none; }

@@ -138,13 +138,29 @@ function resumeBanner() {
 
 function render() {
   root.innerHTML = "";
-  const view = el("div", { class: "screen", "data-screen": screen });
-  // Карта пути видна на входе (как превью пути) и на всех пяти шагах.
-  if (screen === "step0" || content.pathMap.some((n) => n.step === screen)) view.appendChild(pathMapEl());
-  if (resuming) view.appendChild(resumeBanner());
-  view.appendChild(screens[screen](ctx));
-  root.appendChild(view);
-  window.scrollTo(0, 0);
+  // Невалидный экран в сохранённой сессии — начинаем с начала, не падаем.
+  if (!screens[screen]) { screen = flow[0]; state.currentStep = screen; }
+  try {
+    const view = el("div", { class: "screen", "data-screen": screen });
+    // Карта пути видна на входе (как превью пути) и на всех пяти шагах.
+    if (screen === "step0" || content.pathMap.some((n) => n.step === screen)) view.appendChild(pathMapEl());
+    if (resuming) view.appendChild(resumeBanner());
+    view.appendChild(screens[screen](ctx));
+    root.appendChild(view);
+    window.scrollTo(0, 0);
+    // После перехода фокус попадает на заголовок нового шага (для клавиатуры и скринридера).
+    const heading = view.querySelector("h1");
+    if (heading) heading.focus({ preventScroll: true });
+  } catch (e) {
+    // Повреждённое состояние — предлагаем начать заново, а не показываем пустой экран.
+    storage.track("network_error", { operation: "render", step: screen });
+    root.innerHTML = "";
+    root.appendChild(el("div", { class: "screen" },
+      el("h1", { tabindex: "-1" }, "Что-то сбилось"),
+      el("p", { class: "intro" }, "Прогресс не удалось показать. Начнём заново — это быстро."),
+      el("button", { class: "primary", onclick: () => restart() }, "Начать заново")
+    ));
+  }
 }
 
 // Обрыв связи: прогресс уже сохранён локально, показываем спокойный баннер.

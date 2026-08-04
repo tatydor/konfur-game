@@ -402,8 +402,12 @@ export const final = {
   contactPlaceholder: "почта или ник в ММ",
   contactTaskPlaceholder: "какую задачу хочешь разобрать",
   contactSend: "Отправить",
+  contactSending: "Отправляем…",
+  contactSent: "Отправлено",
+  contactRetry: "Попробовать ещё раз",
   contactOk: "Записали, свяжемся по этому контакту.",
   contactNeedField: "Впиши почту или ник, чтобы отправить.",
+  contactBadFormat: "Похоже на опечатку. Впиши почту или ник в ММ.",
   awarenessRepeat: "Теперь знаешь, с чего начать такой пилот?",
   awarenessYes: "Да",
   awarenessNo: "Нет",
@@ -475,6 +479,7 @@ export function createInitialState() {
     awarenessAfter: null, // ответ на финале: "yes" | "no"
     nextStepText: "",    // необязательно
     contact: "",         // необязательно
+    contactSent: false,  // контакт уже отправлен — не спрашиваем повторно
     createdAt: now,
     updatedAt: now,
     stepStartedAt: now

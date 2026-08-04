@@ -4,7 +4,8 @@
 // без изменения экранов: track(event), saveContact(...), getCounter().
 
 const PROGRESS_KEY = "konfur:progress"; // { screen, state }
-const EVENTS_KEY = "konfur:events";     // журнал событий (заглушка вместо сервера)
+const EVENTS_KEY = "konfur:events";     // «отправленный» журнал (заглушка вместо сервера)
+const QUEUE_KEY = "konfur:queue";       // неотправленные события — ждут связи
 const CONTACTS_KEY = "konfur:contacts"; // контакты и свободные тексты — отдельно от аналитики
 
 // Общие параметры событий задаёт app.js через configure(): версия игры и
@@ -52,19 +53,39 @@ export function clearProgress() {
 // ── События: каждое несёт общие параметры и не содержит ничего личного ──
 // В первой версии — консоль + локальный журнал. Позже — внешний приёмник.
 // Ошибка записи события не роняет игру и не блокирует прохождение.
+function readList(key) {
+  const raw = safeGet(key);
+  try { return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+
+// Отправка неотправленных событий: пока связь есть, переносим очередь в журнал
+// (заглушка вместо реального приёмника). Офлайн — оставляем в очереди до связи.
+function flushQueue() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  const queue = readList(QUEUE_KEY);
+  if (!queue.length) return;
+  try {
+    const sent = readList(EVENTS_KEY);
+    sent.push(...queue);
+    if (safeSet(EVENTS_KEY, JSON.stringify(sent))) safeRemove(QUEUE_KEY);
+  } catch { /* журнал недоступен — очередь остаётся до следующей попытки */ }
+}
+
 export function track(event, params = {}) {
   let common = {};
   try { common = cfg.context() || {}; } catch { common = {}; }
   const record = { event, ts: Date.now(), version: cfg.version, ...common, ...deviceInfo(), ...params };
   try { if (typeof console !== "undefined") console.debug("[track]", event, record); } catch { /* ничего */ }
   try {
-    const raw = safeGet(EVENTS_KEY);
-    let list = [];
-    try { list = raw ? JSON.parse(raw) : []; } catch { list = []; }
-    list.push(record);
-    safeSet(EVENTS_KEY, JSON.stringify(list));
-  } catch { /* журнал недоступен — молча пропускаем, прохождение не трогаем */ }
+    const queue = readList(QUEUE_KEY);
+    queue.push(record);
+    safeSet(QUEUE_KEY, JSON.stringify(queue));
+  } catch { /* очередь недоступна — молча пропускаем, прохождение не трогаем */ }
+  flushQueue();
 }
+
+// После восстановления связи очередь уходит без участия игрока.
+if (typeof window !== "undefined") window.addEventListener("online", flushQueue);
 
 // ── Контакт и свободный текст задачи: хранятся отдельно от анонимной аналитики.
 // В общую аналитику уходит только признак успеха, без самого контакта.

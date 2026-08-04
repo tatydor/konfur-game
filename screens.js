@@ -11,7 +11,7 @@ const HYP_MAX = 220; // предел длины гипотезы
 function header(cfg) {
   return el("header", { class: "head" },
     cfg.location ? el("div", { class: "loc" }, cfg.location) : null,
-    el("h1", {}, cfg.title),
+    el("h1", { tabindex: "-1" }, cfg.title),   // цель фокуса при переходе на шаг
     cfg.intro ? el("p", { class: "intro" }, cfg.intro) : null
   );
 }
@@ -29,18 +29,33 @@ function nav(ctx, { nextLabel, disabled, onNext } = {}) {
   return foot;
 }
 
+let fieldSeq = 0;
+// Текстовое поле связываем с настоящим label, группу кнопок — role="group"
+// с aria-labelledby, чтобы скринридер называл и подпись, и элемент.
 function fieldset(legend, control) {
-  return el("div", { class: "field" }, el("div", { class: "legend" }, legend), control);
+  const tag = control.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") {
+    const id = "fld" + (++fieldSeq);
+    control.id = id;
+    return el("div", { class: "field" }, el("label", { class: "legend", for: id }, legend), control);
+  }
+  const id = "grp" + (++fieldSeq);
+  control.setAttribute("role", "group");
+  control.setAttribute("aria-labelledby", id);
+  return el("div", { class: "field" }, el("div", { class: "legend", id }, legend), control);
 }
 
 function choiceRow(options, selected, onPick, extraClass = "") {
   const row = el("div", { class: "choices" });
   for (const opt of options) {
     const btn = el("button", {
+      type: "button",
       class: "choice " + extraClass + (selected === opt.id ? " selected" : ""),
+      "aria-pressed": selected === opt.id ? "true" : "false",
       onclick: () => {
-        [...row.children].forEach((c) => c.classList.remove("selected"));
+        [...row.children].forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
         btn.classList.add("selected");
+        btn.setAttribute("aria-pressed", "true");
         onPick(opt.id);
       }
     }, opt.label);
@@ -72,11 +87,11 @@ function step0(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ title: t.title, intro: t.intro }));
 
-  const error = el("div", { class: "error" });
+  const error = el("div", { class: "error", role: "alert" });
 
   // Поле своей задачи с честным объяснением, без обещания адаптации.
   const ownWrap = el("div", { class: "own-wrap", style: state.task === "own" ? "" : "display:none" });
-  const ownField = el("textarea", { class: "own-field", placeholder: t.ownFieldPlaceholder });
+  const ownField = el("textarea", { class: "own-field", placeholder: t.ownFieldPlaceholder, "aria-label": t.ownFieldLabel });
   ownField.value = state.ownTaskText || "";
   ownField.addEventListener("input", () => { state.ownTaskText = ownField.value; ctx.update(); });
   ownWrap.append(el("p", { class: "own-explain" }, t.ownExplain), ownField);
@@ -149,7 +164,7 @@ function step1(ctx) {
   // пока игрок не начал править текст руками (тогда правка ведёт превью).
   const preview = el("p", { class: "formula" });
   const editWrap = el("div", { class: "edit-wrap", style: h.edited ? "" : "display:none" });
-  const area = el("textarea", { class: "own-field big", maxlength: HYP_MAX });
+  const area = el("textarea", { class: "own-field big", maxlength: HYP_MAX, "aria-label": "Текст гипотезы" });
   const charcount = el("div", { class: "charcount" });
   const warn = el("p", { class: "warn" }, t.privacyWarning);
   editWrap.append(area, charcount, warn);
@@ -223,8 +238,8 @@ function step2(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  const counter = el("div", { class: "counter" });
-  const msg = el("div", { class: "error" });
+  const counter = el("div", { class: "counter", "aria-live": "polite" });
+  const msg = el("div", { class: "error", role: "alert" });
   const chain = el("p", { class: "chain" });
   const list = el("div", { class: "tool-list" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: state.tools.selected.length === 0 });
@@ -345,7 +360,7 @@ function step3(ctx) {
   });
 
   const stage = el("div", { class: "stage" });
-  const consequence = el("p", { class: "consequence" });
+  const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step3Choice });
 
   // Последствие учитывает задачу; общий текст остаётся запасным.
@@ -373,8 +388,12 @@ function step3(ctx) {
   }
 
   // Короткая анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
+  // При prefers-reduced-motion анимацию пропускаем и сразу показываем результат.
   function runBuild() {
     const nodes = [...chainRow.querySelectorAll(".chain-node")];
+    const reduce = typeof window !== "undefined" && window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { nodes.forEach((n) => n.classList.add("lit")); showResult(); return; }
     stage.innerHTML = "";
     stage.appendChild(el("div", { class: "building" }, el("span", {}, t.buildingText)));
     let i = 0;
@@ -413,7 +432,7 @@ function step4(ctx) {
 
   const body = el("div");                       // переключается: рекомендация ↔ полный список
   const reqBox = el("div", { class: "requirements" });
-  const msg = el("div", { class: "error" });
+  const msg = el("div", { class: "error", role: "alert" });
   const foot = nav(ctx, {
     nextLabel: t.button,
     onNext: () => { if (!state.publishChannel) { msg.textContent = t.earlyAttempt; return; } ctx.next(); }
@@ -421,8 +440,11 @@ function step4(ctx) {
   foot.querySelector(".primary").disabled = !state.publishChannel;
 
   // Канал объясняем пользовательским сценарием, внутренние названия — вторым уровнем.
-  function channelCard(ch, selected) {
-    return el("div", { class: "channel-card" + (selected ? " selected" : ""), "data-id": ch.id },
+  // В списке выбора это кнопка (доступна с клавиатуры), в рекомендации — просто карточка.
+  function channelCard(ch, selected, interactive) {
+    const props = { class: "channel-card" + (selected ? " selected" : ""), "data-id": ch.id };
+    if (interactive) { props.type = "button"; props["aria-pressed"] = selected ? "true" : "false"; }
+    return el(interactive ? "button" : "div", props,
       el("div", { class: "channel-name" }, ch.name),
       el("div", { class: "channel-scenario" }, ch.scenario),
       el("div", { class: "channel-behind" }, t.behindLabel + ": " + ch.tools)
@@ -457,7 +479,7 @@ function step4(ctx) {
     body.innerHTML = "";
     if (!expanded) {
       // Рекомендация: предлагаем подходящий канал, игрок принимает одно решение.
-      body.appendChild(channelCard(content.channelById[recoId], state.publishChannel === recoId));
+      body.appendChild(channelCard(content.channelById[recoId], state.publishChannel === recoId, false));
       body.appendChild(el("div", { class: "channel-actions" },
         el("button", { class: "primary wide", onclick: () => select(recoId) }, t.fits),
         el("button", { class: "ghost wide", onclick: () => { expanded = true; renderBody(); } }, t.chooseOther)
@@ -467,7 +489,7 @@ function step4(ctx) {
       body.appendChild(el("div", { class: "legend" }, t.otherLabel));
       const list = el("div", { class: "channel-list" });
       for (const ch of content.channels) {
-        const card = channelCard(ch, state.publishChannel === ch.id);
+        const card = channelCard(ch, state.publishChannel === ch.id, true);
         card.classList.add("selectable");
         card.addEventListener("click", () => select(ch.id));
         list.appendChild(card);
@@ -509,7 +531,7 @@ function step5(ctx) {
 
   wrap.appendChild(el("div", { class: "callout" }, task.problem));
 
-  const consequence = el("p", { class: "consequence" });
+  const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step5Choice });
   if (state.step5Choice) consequence.textContent = content.step5Consequence[state.step5Choice];
 
@@ -558,7 +580,7 @@ function final(ctx) {
   const kv = (label, value) =>
     value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
   wrap.appendChild(el("div", { class: "final-card" },
-    el("div", { class: "card-title" }, title),
+    el("h1", { class: "card-title", tabindex: "-1" }, title),
     kv(f.cardHypothesisLabel, state.hypothesis.finalText || task.seed),
     kv(f.cardToolsLabel, toolNames.join(", ")),
     kv(f.cardLaunchLabel, launchNote),
@@ -604,9 +626,10 @@ function final(ctx) {
   // Один добровольный сценарий контакта: раскрывается по нажатию, на подарок не
   // влияет, повторно не спрашивается. Хранится отдельно от прогресса.
   const contactForm = el("div", { class: "contact-form", style: "display:none" });
-  const contactInput = el("input", { class: "text-field", type: "text", placeholder: f.contactPlaceholder });
+  const contactInput = el("input", {
+    class: "text-field", type: "text", placeholder: f.contactPlaceholder, "aria-label": f.contactPlaceholder
+  });
   contactInput.value = state.contact || "";
-  contactInput.addEventListener("input", () => { state.contact = contactInput.value; });
 
   const openContact = el("button", {
     class: "ghost wide",
@@ -617,33 +640,50 @@ function final(ctx) {
 
   // Короткое поле задачи — только если её не вводили раньше (не «своя задача»).
   if (state.task !== "own") {
-    const taskInput = el("input", { class: "text-field", type: "text", placeholder: f.contactTaskPlaceholder });
+    const taskInput = el("input", {
+      class: "text-field", type: "text", placeholder: f.contactTaskPlaceholder, "aria-label": f.contactTaskPlaceholder
+    });
     taskInput.value = state.ownTaskText || "";
     taskInput.addEventListener("input", () => { state.ownTaskText = taskInput.value; ctx.update(); });
     contactForm.appendChild(taskInput);
   }
 
-  const contactMsg = el("div", { class: "contact-msg" });
-  const contactBtn = el("button", {
-    class: "primary wide",
-    onclick: () => {
-      const val = contactInput.value.trim();
-      if (!val) { contactMsg.textContent = f.contactNeedField; contactMsg.className = "contact-msg error"; return; }
-      state.contact = val;
-      ctx.update();
-      ctx.storage.saveContact(val, { sessionId: state.runId, task: state.ownTaskText || task.title })
-        .then(() => { contactMsg.textContent = f.contactOk; contactMsg.className = "contact-msg ok"; })
-        .catch(() => { contactMsg.textContent = content.system.contactError; contactMsg.className = "contact-msg error"; });
-    }
-  }, f.contactSend);
+  const contactMsg = el("div", { class: "contact-msg", role: "status", "aria-live": "polite" });
+  const setMsg = (text, kind) => { contactMsg.textContent = text; contactMsg.className = "contact-msg" + (kind ? " " + kind : ""); };
+  // Похоже на почту или на ник — иначе объясняем рядом с полем.
+  const validFormat = (v) => /^\S+@\S+\.\S+$/.test(v) || /^@?[\wА-Яа-яЁё.\-]{2,}$/.test(v);
+
+  let sending = false;
+  const contactBtn = el("button", { class: "primary wide", onclick: submitContact }, f.contactSend);
+  function submitContact() {
+    if (sending || state.contactSent) return;            // без дублей
+    const val = contactInput.value.trim();
+    if (!val) { setMsg(f.contactNeedField, "error"); contactInput.focus(); return; }
+    if (!validFormat(val)) { setMsg(f.contactBadFormat, "error"); contactInput.focus(); return; }
+    sending = true; contactBtn.disabled = true; setMsg(f.contactSending, "");
+    state.contact = val; ctx.update();
+    ctx.storage.saveContact(val, { sessionId: state.runId, task: state.ownTaskText || task.title })
+      .then(() => {
+        state.contactSent = true; ctx.update();
+        setMsg(f.contactOk, "ok"); contactBtn.textContent = f.contactSent;   // остаётся disabled — без дублей
+      })
+      .catch(() => {
+        ctx.storage.track("network_error", { operation: "save_contact", step: "final" });
+        setMsg(content.system.contactError, "error");
+        sending = false; contactBtn.disabled = false; contactBtn.textContent = f.contactRetry;
+      });
+  }
   contactForm.append(contactBtn, contactMsg);
 
-  // Если контакт уже оставлен, показываем форму раскрытой.
-  if (state.contact) { contactForm.style.display = ""; openContact.style.display = "none"; }
+  // Если контакт уже отправлен, показываем форму раскрытой и завершённой.
+  if (state.contactSent) {
+    contactForm.style.display = ""; openContact.style.display = "none";
+    contactBtn.disabled = true; contactBtn.textContent = f.contactSent; setMsg(f.contactOk, "ok");
+  }
   wrap.appendChild(el("div", { class: "field" }, openContact, contactForm));
 
   // Повтор базового вопроса — замер сдвига, ответ связываем со входом.
-  const shiftNote = el("div", { class: "shift-note" });
+  const shiftNote = el("div", { class: "shift-note", "aria-live": "polite" });
   function reflectShift(after) {
     shiftNote.textContent = (state.awarenessBefore === "no" && after === "yes")
       ? "На входе было «нет» — это и есть сдвиг, за которым мы пришли." : "";
@@ -662,7 +702,7 @@ function final(ctx) {
   reflectShift(state.awarenessAfter);
 
   // Следующий шаг: подсказки под вариант, можно выбрать или вписать свой.
-  const ownNext = el("input", { class: "text-field", type: "text", placeholder: f.nextStepOwnPlaceholder });
+  const ownNext = el("input", { class: "text-field", type: "text", placeholder: f.nextStepOwnPlaceholder, "aria-label": f.nextStepPrompt });
   ownNext.value = v.nextSteps.includes(state.nextStepText) ? "" : (state.nextStepText || "");
   const chips = el("div", { class: "choices" });
   v.nextSteps.forEach((s, i) => {
@@ -708,20 +748,24 @@ function anketa(ctx) {
     wrap.appendChild(fieldset(q.text, input));
   });
 
-  const done = el("div", { class: "thanks", style: "display:none" }, a.thanks);
+  const done = el("div", { class: "thanks", style: "display:none", role: "status", "aria-live": "polite" }, a.thanks);
   const restart = el("button", { class: "ghost restart", style: "display:none", onclick: () => ctx.restart() }, "Пройти заново");
+  let submitted = false;
+  const submitBtn = el("button", {
+    class: "primary",
+    onclick: () => {
+      if (submitted) return;               // повторное нажатие не создаёт дубликаты
+      submitted = true; submitBtn.disabled = true;
+      // В аналитику — только признаки заполнения полей, без сырого текста.
+      const fields = inputs.map((inp) => inp.value.trim().length > 0);
+      ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
+      done.style.display = "";
+      restart.style.display = "";
+    }
+  }, a.button);
   const foot = el("footer", { class: "nav" },
     el("button", { class: "ghost", onclick: () => ctx.back() }, "← Назад"),
-    el("button", {
-      class: "primary",
-      onclick: () => {
-        // В аналитику — только признаки заполнения полей, без сырого текста.
-        const fields = inputs.map((inp) => inp.value.trim().length > 0);
-        ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
-        done.style.display = "";
-        restart.style.display = "";
-      }
-    }, a.button)
+    submitBtn
   );
   wrap.append(foot, done, restart);
   return wrap;
