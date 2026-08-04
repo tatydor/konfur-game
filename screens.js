@@ -481,15 +481,25 @@ function step5(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step5;
   const task = content.taskById[state.task];
-  const m = content.metricsPanel;
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  wrap.appendChild(el("div", { class: "metrics" },
-    metric(t.metricsLabels.users, m.users.toLocaleString("ru-RU")),
-    metric(t.metricsLabels.requests, m.requests.toLocaleString("ru-RU")),
-    metric(t.metricsLabels.satisfaction, m.satisfaction)
-  ));
+  // Показатели связаны со способом проверки, выбранным на шаге 1.
+  const critId = state.hypothesis.criterionChoice;
+  const crit = content.criterionOptions.find((c) => c.id === critId);
+  if (crit) {
+    wrap.appendChild(el("div", { class: "field" },
+      el("div", { class: "legend" }, t.criterionCaption),
+      el("p", { class: "reco-line" }, crit.phrase)
+    ));
+  }
+
+  const tiles = content.criterionMetrics[critId] || content.criterionMetrics.errors2w;
+  const metricsBox = el("div", { class: "metrics" });
+  metricsBox.style.gridTemplateColumns = `repeat(${tiles.length}, 1fr)`;
+  for (const tile of tiles) metricsBox.appendChild(metric(tile.label, tile.value));
+  wrap.appendChild(metricsBox);
+
   wrap.appendChild(el("div", { class: "callout" }, task.problem));
 
   const consequence = el("p", { class: "consequence" });
@@ -501,6 +511,7 @@ function step5(ctx) {
     state.step5Choice,
     (id) => {
       state.step5Choice = id;
+      state.finalVariant = id;   // решение определяет вариант финала (раздел 13)
       ctx.update();
       consequence.textContent = content.step5Consequence[id];
       foot.querySelector(".primary").disabled = false;
