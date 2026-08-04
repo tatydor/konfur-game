@@ -206,28 +206,44 @@ function step1(ctx) {
   return wrap;
 }
 
-// ── Шаг 2. Инструменты: выбрать до трёх ───────────────────────
+// ── Шаг 2. Инструменты вокруг бюджета: выбрать до трёх ─────────
 function step2(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step2;
-  const task = content.taskById[state.task];
-  const recommended = new Set(task.tools);
+  const tt = content.taskTools[state.task] || { reco: [], alt: [] };
+  const recoSet = new Set(tt.reco);
+  const mainIds = [...tt.reco, ...tt.alt];                    // основной экран: рекомендации + альтернативы
+  const restIds = content.tools.map((x) => x.id).filter((id) => !mainIds.includes(id));
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
   const counter = el("div", { class: "counter" });
   const msg = el("div", { class: "error" });
+  const chain = el("p", { class: "chain" });
+  const list = el("div", { class: "tool-list" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: state.tools.selected.length === 0 });
+
   function refresh() {
-    counter.textContent = tpl(t.counterTemplate, { n: state.tools.selected.length, max: t.maxTools });
-    foot.querySelector(".primary").disabled = state.tools.selected.length === 0;
+    const sel = state.tools.selected;
+    counter.textContent = tpl(t.counterTemplate, { n: sel.length, max: t.maxTools });
+    foot.querySelector(".primary").disabled = sel.length === 0;
+    // При достижении лимита невыбранные карточки приглушаются.
+    wrap.querySelectorAll(".tool").forEach((c) => {
+      const id = c.getAttribute("data-id");
+      c.classList.toggle("dimmed", sel.length >= t.maxTools && !sel.includes(id));
+    });
+    // Строка сборки: как выбранные инструменты работают вместе.
+    chain.textContent = sel.length
+      ? sel.map((id) => { const tl = content.toolById[id]; return tl ? `${tl.name} ${tl.role}` : ""; }).filter(Boolean).join(", ") + "."
+      : "";
   }
 
-  const list = el("div", { class: "tool-list" });
-  for (const tool of content.tools) {
-    const isReco = recommended.has(tool.id);
+  function toolCard(tool) {
+    const isReco = recoSet.has(tool.id);
     const card = el("button", {
-      class: "tool selectable" + (state.tools.selected.includes(tool.id) ? " selected" : "") + (isReco ? " reco" : "")
+      class: "tool selectable" + (state.tools.selected.includes(tool.id) ? " selected" : "") + (isReco ? " reco" : ""),
+      "data-id": tool.id,
+      "aria-pressed": state.tools.selected.includes(tool.id) ? "true" : "false"
     },
       el("div", { class: "tool-head" },
         el("span", { class: "tool-name" }, tool.name),
@@ -240,38 +256,62 @@ function step2(ctx) {
       const sel = state.tools.selected;
       const i = sel.indexOf(tool.id);
       if (i >= 0) {
-        sel.splice(i, 1);
-        card.classList.remove("selected");
-        msg.textContent = "";
+        sel.splice(i, 1); card.classList.remove("selected"); card.setAttribute("aria-pressed", "false"); msg.textContent = "";
       } else if (sel.length >= t.maxTools) {
         msg.textContent = t.fourthAttempt;
+        ctx.storage.track("tool_budget_exceeded", { runId: state.runId, tool: tool.id });
         return;
       } else {
-        sel.push(tool.id);
-        card.classList.add("selected");
-        msg.textContent = "";
+        sel.push(tool.id); card.classList.add("selected"); card.setAttribute("aria-pressed", "true"); msg.textContent = "";
       }
-      ctx.update();
-      refresh();
+      ctx.storage.track("tool_toggled", { runId: state.runId, tool: tool.id, count: sel.length });
+      ctx.update(); refresh();
     });
-    list.appendChild(card);
+    return card;
   }
 
-  const gaps = el("div", { class: "choices" });
+  for (const id of mainIds) list.appendChild(toolCard(content.toolById[id]));
+
+  // Остальные инструменты — под раскрытие, не удлиняют основной путь.
+  const moreWrap = el("div", { class: "more-tools", style: "display:none" });
+  for (const id of restIds) moreWrap.appendChild(toolCard(content.toolById[id]));
+  const moreToggle = el("button", {
+    class: "linklike",
+    onclick: () => {
+      const open = moreWrap.style.display === "";
+      moreWrap.style.display = open ? "none" : "";
+      moreToggle.textContent = open ? t.allToolsToggle : "Свернуть";
+      refresh();
+    }
+  }, t.allToolsToggle);
+
+  // Нехватка — необязательная свёрнутая область, не в основном маршруте.
+  const gapsWrap = el("div", { class: "gaps-wrap", style: "display:none" });
+  const gapsRow = el("div", { class: "choices" });
   for (const g of content.gapOptions) {
     const chip = el("button", { class: "choice small" + (state.tools.gaps.includes(g.id) ? " selected" : "") }, g.label);
     chip.addEventListener("click", () => {
       const arr = state.tools.gaps;
       const i = arr.indexOf(g.id);
       if (i >= 0) { arr.splice(i, 1); chip.classList.remove("selected"); }
-      else { arr.push(g.id); chip.classList.add("selected"); }
+      else { arr.push(g.id); chip.classList.add("selected"); ctx.storage.track("tool_gap", { runId: state.runId, gap: g.id }); }
       ctx.update();
     });
-    gaps.appendChild(chip);
+    gapsRow.appendChild(chip);
   }
+  gapsWrap.appendChild(gapsRow);
+  const gapsToggle = el("button", {
+    class: "linklike",
+    onclick: () => { gapsWrap.style.display = gapsWrap.style.display === "" ? "none" : ""; }
+  }, t.gapsTitle);
 
-  wrap.append(counter, list, el("p", { class: "hint" }, t.badgeHint), msg,
-    fieldset(t.gapsTitle, gaps), foot);
+  wrap.append(
+    counter, list, moreToggle, moreWrap,
+    el("p", { class: "hint" }, t.badgeHint),
+    chain, msg,
+    gapsToggle, gapsWrap,
+    foot
+  );
   refresh();
   return wrap;
 }

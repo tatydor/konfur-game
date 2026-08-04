@@ -100,17 +100,26 @@ export function buildHypothesis(taskId, resultId, criterionId) {
 // Шаг 2: десять инструментов платформы. Выбрать можно три.
 // badge: "Зрелый" | "Без кода" | "Новый" | "В начале пути" — VERIFY:badges
 export const tools = [
-  { id: "llm",      name: "LLM",                  explain: "Большие языковые модели: пишут, переписывают, отвечают, разбирают текст.", badge: "Зрелый" },
-  { id: "rag",      name: "RAG",                  explain: "Ответы по вашим базам и документам, со ссылкой на источник.",             badge: "Зрелый" },
-  { id: "ocr",      name: "OCR",                  explain: "Распознавание текста на сканах и фотографиях.",                          badge: "Зрелый" },
-  { id: "ner",      name: "NER",                  explain: "Находит в тексте сущности: суммы, даты, названия, реквизиты.",           badge: "Зрелый" },
-  { id: "asr_tts",  name: "ASR и TTS",            explain: "Речь в текст и обратно.",                                                badge: "Зрелый" },
-  { id: "dify",     name: "Dify",                 explain: "Конструктор агентов и ассистентов, собирается мышкой.",                  badge: "Без кода" },
-  { id: "mcp",      name: "MCP",                  explain: "Интеграции с вики, YouTrack и другими источниками.",                     badge: "Новый" },
-  { id: "cargo",    name: "Cargo",                explain: "Поиск и сбор новостей по источникам.",                                   badge: "Новый" },
-  { id: "imagegen", name: "Image Gen API",        explain: "Генерация и обработка изображений.",                                     badge: "Новый" },
-  { id: "agents",   name: "Агентские фреймворки", explain: "Автономные системы с памятью, состоянием и своими инструментами.",       badge: "В начале пути" }
+  { id: "llm",      name: "LLM",                  explain: "Большие языковые модели: пишут, переписывают, отвечают, разбирают текст.", badge: "Зрелый",        role: "разберёт и сформулирует текст" },
+  { id: "rag",      name: "RAG",                  explain: "Ответы по вашим базам и документам, со ссылкой на источник.",             badge: "Зрелый",        role: "найдёт ответ в вашей базе" },
+  { id: "ocr",      name: "OCR",                  explain: "Распознавание текста на сканах и фотографиях.",                          badge: "Зрелый",        role: "распознает текст на сканах" },
+  { id: "ner",      name: "NER",                  explain: "Находит в тексте сущности: суммы, даты, названия, реквизиты.",           badge: "Зрелый",        role: "выделит нужные поля" },
+  { id: "asr_tts",  name: "ASR и TTS",            explain: "Речь в текст и обратно.",                                                badge: "Зрелый",        role: "переведёт речь в текст" },
+  { id: "dify",     name: "Dify",                 explain: "Конструктор агентов и ассистентов, собирается мышкой.",                  badge: "Без кода",      role: "соберёт всё в процесс" },
+  { id: "mcp",      name: "MCP",                  explain: "Интеграции с вики, YouTrack и другими источниками.",                     badge: "Новый",         role: "подтянет данные из систем" },
+  { id: "cargo",    name: "Cargo",                explain: "Поиск и сбор новостей по источникам.",                                   badge: "Новый",         role: "соберёт новости по источникам" },
+  { id: "imagegen", name: "Image Gen API",        explain: "Генерация и обработка изображений.",                                     badge: "Новый",         role: "сделает изображение" },
+  { id: "agents",   name: "Агентские фреймворки", explain: "Автономные системы с памятью, состоянием и своими инструментами.",       badge: "В начале пути", role: "выполнит шаги сам" }
 ];
+
+// Шаг 2: рекомендованные (в бюджет) и альтернативные инструменты под задачу. VERIFY:highlight
+export const taskTools = {
+  documents: { reco: ["ocr", "ner", "dify"], alt: ["llm", "rag"] },
+  requests:  { reco: ["llm", "dify", "mcp"], alt: ["ner", "rag"] },
+  news:      { reco: ["cargo", "llm", "dify"], alt: ["ner", "mcp"] },
+  contract:  { reco: ["llm", "rag", "dify"], alt: ["ocr", "mcp"] },
+  own:       { reco: ["llm", "rag", "dify"], alt: ["ner", "ocr"] }
+};
 
 // Шаг 2: блок «чего не хватило» — tools.gaps
 export const gapOptions = [
@@ -172,6 +181,7 @@ export const ui = {
     badgeHint: "Пометка говорит, сколько сил уйдёт на подключение. «В начале пути» значит, что инструмент работает, но вы будете первыми.",
     fourthAttempt: "Четвёртый инструмент в Контуре есть, а в бюджете нет. Сними галочку с любого.",
     counterTemplate: "Выбрано {n} из {max}",
+    allToolsToggle: "Посмотреть все инструменты",
     gapsTitle: "Не нашёл нужного? Отметь, чего не хватает.",
     button: "Дальше: сборка →"
   },
@@ -341,8 +351,8 @@ export const toolById = Object.fromEntries(tools.map((t) => [t.id, t]));
 // Единый объект контента, если удобнее импортировать одним куском.
 export const content = {
   tasks, taskById,
-  resultOptions, criterionOptions,
-  tools, toolById, gapOptions,
+  resultOptions, criterionOptions, taskAction, buildHypothesis,
+  tools, toolById, taskTools, gapOptions,
   step3Consequence, metricsPanel, step5Consequence,
   ui, final, anketa, system, flow
 };

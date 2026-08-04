@@ -231,3 +231,10 @@ button.restart { display: block; margin: 24px auto 0; }
   transform: translateY(100%); transition: transform 0.2s;
 }
 .offline-bar.show { transform: none; }
+
+/* Шаг 2: приглушение при лимите, строка сборки, раскрытия */
+.tool.dimmed { opacity: .45; }
+.chain { font-size: .92rem; opacity: .85; margin: .4rem 0; }
+.more-tools, .gaps-wrap { margin-top: .5rem; }
+.edit-actions { display: flex; gap: 1rem; margin: .3rem 0; flex-wrap: wrap; }
+.own-explain { font-size: .92rem; opacity: .85; margin: .3rem 0; }
