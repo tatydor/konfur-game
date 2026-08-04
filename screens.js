@@ -390,37 +390,89 @@ function step3(ctx) {
   return wrap;
 }
 
-// ── Шаг 4. Публикация: интерактивный чек-лист ─────────────────
+// ── Шаг 4. Публикация: выбор канала под задачу ────────────────
 function step4(ctx) {
-  const { content } = ctx;
+  const { content, state } = ctx;
   const t = content.ui.step4;
+  const tc = content.taskChannels[state.task] || { reco: content.channels.map((c) => c.id), text: "" };
+  const recoId = tc.reco[0];
   const wrap = el("div");
-  wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  const checked = new Array(t.checklist.length).fill(false);
+  const locFor = () =>
+    content.channelById[state.publishChannel]?.loc || content.channelById[recoId]?.loc || t.location;
+  const head = header({ location: locFor(), title: t.title, intro: t.intro });
+  wrap.appendChild(head);
+  wrap.appendChild(el("p", { class: "reco-line" }, tc.text));
+
+  const body = el("div");                       // переключается: рекомендация ↔ полный список
+  const reqBox = el("div", { class: "requirements" });
   const msg = el("div", { class: "error" });
-  const done = el("p", { class: "done", style: "display:none" }, t.doneText);
-
-  const list = el("div", { class: "checklist-i" });
-  t.checklist.forEach((item, idx) => {
-    const cb = el("input", { type: "checkbox" });
-    cb.addEventListener("change", () => {
-      checked[idx] = cb.checked;
-      msg.textContent = "";
-      done.style.display = checked.every(Boolean) ? "" : "none";
-    });
-    list.appendChild(el("label", { class: "check" }, cb, el("span", {}, item)));
-  });
-
   const foot = nav(ctx, {
     nextLabel: t.button,
-    onNext: () => {
-      if (!checked.every(Boolean)) { msg.textContent = t.earlyAttempt; return; }
-      ctx.next();
-    }
+    onNext: () => { if (!state.publishChannel) { msg.textContent = t.earlyAttempt; return; } ctx.next(); }
   });
+  foot.querySelector(".primary").disabled = !state.publishChannel;
 
-  wrap.append(list, done, msg, foot);
+  // Канал объясняем пользовательским сценарием, внутренние названия — вторым уровнем.
+  function channelCard(ch, selected) {
+    return el("div", { class: "channel-card" + (selected ? " selected" : ""), "data-id": ch.id },
+      el("div", { class: "channel-name" }, ch.name),
+      el("div", { class: "channel-scenario" }, ch.scenario),
+      el("div", { class: "channel-behind" }, t.behindLabel + ": " + ch.tools)
+    );
+  }
+
+  // Требования списком, без чекбоксов — не имитируем сделанную разработку.
+  function showRequirements(id) {
+    const ch = content.channelById[id];
+    reqBox.innerHTML = "";
+    if (!ch) return;
+    reqBox.appendChild(el("div", { class: "legend" }, t.requirementsLabel));
+    const ul = el("ul", { class: "req-list" });
+    for (const r of ch.requirements) ul.appendChild(el("li", {}, r));
+    reqBox.appendChild(ul);
+  }
+
+  let expanded = state.publishChannel && state.publishChannel !== recoId;
+  function select(id) {
+    state.publishChannel = id;
+    ctx.update();
+    ctx.storage.track("channel_chosen", { runId: state.runId, channel: id });
+    const locEl = head.querySelector(".loc");
+    if (locEl) locEl.textContent = locFor();
+    foot.querySelector(".primary").disabled = false;
+    msg.textContent = "";
+    showRequirements(id);
+    renderBody();
+  }
+
+  function renderBody() {
+    body.innerHTML = "";
+    if (!expanded) {
+      // Рекомендация: предлагаем подходящий канал, игрок принимает одно решение.
+      body.appendChild(channelCard(content.channelById[recoId], state.publishChannel === recoId));
+      body.appendChild(el("div", { class: "channel-actions" },
+        el("button", { class: "primary wide", onclick: () => select(recoId) }, t.fits),
+        el("button", { class: "ghost wide", onclick: () => { expanded = true; renderBody(); } }, t.chooseOther)
+      ));
+    } else {
+      // Смена канала: открываются четыре варианта.
+      body.appendChild(el("div", { class: "legend" }, t.otherLabel));
+      const list = el("div", { class: "channel-list" });
+      for (const ch of content.channels) {
+        const card = channelCard(ch, state.publishChannel === ch.id);
+        card.classList.add("selectable");
+        card.addEventListener("click", () => select(ch.id));
+        list.appendChild(card);
+      }
+      body.appendChild(list);
+    }
+  }
+
+  renderBody();
+  if (state.publishChannel) showRequirements(state.publishChannel);
+
+  wrap.append(body, reqBox, msg, foot);
   return wrap;
 }
 
@@ -477,14 +529,16 @@ function final(ctx) {
   const toolNames = (state.tools.selected.length ? state.tools.selected : task.tools)
     .map((id) => content.toolById[id]?.name).filter(Boolean);
 
-  // Решение шага 3 отражаем как режим запуска пилота.
+  // Решение шага 3 отражаем как режим запуска пилота, шага 4 — как канал.
   const launchNote = state.step3Choice ? task.check?.[state.step3Choice]?.launch : null;
+  const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
 
   wrap.appendChild(el("div", { class: "final-card" },
     el("div", { class: "card-title" }, title),
     el("div", { class: "kv" }, el("b", {}, f.cardHypothesisLabel + ": "), state.hypothesis.finalText || task.seed),
     el("div", { class: "kv" }, el("b", {}, f.cardToolsLabel + ": "), toolNames.join(", ")),
     launchNote ? el("div", { class: "kv" }, el("b", {}, f.cardLaunchLabel + ": "), launchNote) : null,
+    channelName ? el("div", { class: "kv" }, el("b", {}, f.cardChannelLabel + ": "), channelName) : null,
     el("div", { class: "muted" }, f.cardFooter)
   ));
 
