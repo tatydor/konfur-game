@@ -324,44 +324,69 @@ function step3(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
+  // Собранная цепочка: выбранные на шаге 2 инструменты (или подсказка задачи),
+  // показана до результата, чтобы читалась последовательность сборки.
+  const chainTools = (state.tools.selected.length ? state.tools.selected : task.tools)
+    .map((id) => content.toolById[id]).filter(Boolean);
+  const chainRow = el("div", { class: "chain-row" });
+  chainTools.forEach((tl, i) => {
+    if (i) chainRow.appendChild(el("span", { class: "chain-arrow" }, "→"));
+    chainRow.appendChild(el("div", { class: "chain-node" },
+      el("span", { class: "chain-name" }, tl.name),
+      el("span", { class: "chain-role" }, tl.role)
+    ));
+  });
+
   const stage = el("div", { class: "stage" });
   const consequence = el("p", { class: "consequence" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step3Choice });
 
+  // Последствие учитывает задачу; общий текст остаётся запасным.
+  const consequenceFor = (id) => task.check?.[id]?.consequence || content.step3Consequence[id];
+
   function showResult() {
     stage.innerHTML = "";
-    stage.appendChild(el("div", { class: "callout" }, task.example));
+    stage.appendChild(el("div", { class: "field" },
+      el("div", { class: "legend" }, t.resultLabel),
+      el("div", { class: "callout" }, task.example)
+    ));
     const choice = choiceRow(
       [{ id: "enough", label: t.enoughLabel }, { id: "refine", label: t.refineLabel }],
       state.step3Choice,
       (id) => {
         state.step3Choice = id;
         ctx.update();
-        consequence.textContent = content.step3Consequence[id];
+        consequence.textContent = consequenceFor(id);
         foot.querySelector(".primary").disabled = false;
         ctx.storage.track("step3_choice", { runId: state.runId, choice: id });
       }
     );
     stage.appendChild(fieldset(t.question, choice));
-    if (state.step3Choice) consequence.textContent = content.step3Consequence[state.step3Choice];
+    if (state.step3Choice) consequence.textContent = consequenceFor(state.step3Choice);
+  }
+
+  // Короткая анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
+  function runBuild() {
+    const nodes = [...chainRow.querySelectorAll(".chain-node")];
+    stage.innerHTML = "";
+    stage.appendChild(el("div", { class: "building" }, el("span", {}, t.buildingText)));
+    let i = 0;
+    const lit = () => {
+      if (i < nodes.length) { nodes[i].classList.add("lit"); i += 1; setTimeout(lit, 340); }
+      else setTimeout(showResult, 300);
+    };
+    lit();
   }
 
   if (state.step3Choice) {
+    // Возврат на шаг: цепочка уже собрана, результат показываем сразу.
+    chainRow.querySelectorAll(".chain-node").forEach((n) => n.classList.add("lit"));
     showResult();
   } else {
-    const build = el("button", {
-      class: "primary build",
-      onclick: () => {
-        stage.innerHTML = "";
-        stage.appendChild(el("div", { class: "building" },
-          el("span", { class: "spinner" }), el("span", {}, t.buildingText)));
-        setTimeout(showResult, 1200);
-      }
-    }, t.buildButton);
-    stage.appendChild(build);
+    stage.appendChild(el("button", { class: "primary build", onclick: runBuild }, t.buildButton));
   }
 
-  wrap.append(stage, consequence, foot);
+  wrap.append(el("div", { class: "legend" }, t.chainLabel), chainRow, stage, consequence, foot);
   return wrap;
 }
 
@@ -452,10 +477,14 @@ function final(ctx) {
   const toolNames = (state.tools.selected.length ? state.tools.selected : task.tools)
     .map((id) => content.toolById[id]?.name).filter(Boolean);
 
+  // Решение шага 3 отражаем как режим запуска пилота.
+  const launchNote = state.step3Choice ? task.check?.[state.step3Choice]?.launch : null;
+
   wrap.appendChild(el("div", { class: "final-card" },
     el("div", { class: "card-title" }, title),
     el("div", { class: "kv" }, el("b", {}, f.cardHypothesisLabel + ": "), state.hypothesis.finalText || task.seed),
     el("div", { class: "kv" }, el("b", {}, f.cardToolsLabel + ": "), toolNames.join(", ")),
+    launchNote ? el("div", { class: "kv" }, el("b", {}, f.cardLaunchLabel + ": "), launchNote) : null,
     el("div", { class: "muted" }, f.cardFooter)
   ));
 
