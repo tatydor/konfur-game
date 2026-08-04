@@ -267,8 +267,7 @@ function step2(ctx) {
       "aria-pressed": state.tools.selected.includes(tool.id) ? "true" : "false"
     },
       el("div", { class: "tool-head" },
-        el("span", { class: "tool-name" }, tool.name),
-        el("span", { class: "badge" }, tool.badge)
+        el("span", { class: "tool-name" }, tool.name)
       ),
       el("div", { class: "tool-explain" }, tool.explain),
       isReco ? el("span", { class: "reco-tag" }, "советуем под задачу") : null
@@ -329,7 +328,6 @@ function step2(ctx) {
 
   wrap.append(
     counter, list, moreToggle, moreWrap,
-    el("p", { class: "hint" }, t.badgeHint),
     chain, msg,
     gapsToggle, gapsWrap,
     foot
