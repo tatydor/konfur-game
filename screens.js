@@ -88,8 +88,12 @@ function step0(ctx) {
       "aria-pressed": state.task === task.id ? "true" : "false",
       onclick: () => {
         // Смена задачи сбрасывает зависимые данные старой ветки.
-        if (state.task !== task.id) resetDependentOnTask(state);
+        if (state.task && state.task !== task.id) {
+          ctx.storage.track("task_changed", { from: state.task, to: task.id });
+          resetDependentOnTask(state);
+        }
         state.task = task.id;
+        ctx.storage.track("task_selected", { taskId: task.id });
         ctx.update();
         [...cards.children].forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
         card.classList.add("selected");
@@ -107,7 +111,7 @@ function step0(ctx) {
   const awareness = choiceRow(
     [{ id: "yes", label: t.awarenessYes }, { id: "no", label: t.awarenessNo }],
     state.awarenessBefore,
-    (id) => { state.awarenessBefore = id; ctx.update(); error.textContent = ""; }
+    (id) => { state.awarenessBefore = id; ctx.update(); error.textContent = ""; ctx.storage.track("knows_before_answered", { value: id }); }
   );
 
   wrap.append(
@@ -123,9 +127,7 @@ function step0(ctx) {
           error.textContent = content.system.emptyRequired; return;
         }
         if (!state.awarenessBefore) { error.textContent = t.awarenessRequired; return; }
-        ctx.storage.track("task_chosen", { runId: state.runId, task: state.task });
-        ctx.storage.track("knows_before", { runId: state.runId, value: state.awarenessBefore });
-        ctx.next();
+        ctx.next();  // game_started фиксируется при переходе step0 → step1
       }
     })
   );
@@ -166,15 +168,19 @@ function step1(ctx) {
     preview.textContent = h.finalText;
     ctx.update();
   }
+  // Признак правки текста фиксируем один раз, без самого текста в аналитике.
+  let editedTracked = false;
+  const trackEdited = () => { if (!editedTracked) { editedTracked = true; ctx.storage.track("hypothesis_edited", {}); } };
+
   area.value = h.finalText || h.seedShown;
   area.addEventListener("input", () => {
     h.finalText = area.value; h.edited = true; ctx.update();
-    preview.textContent = h.finalText; updateCharcount();
+    preview.textContent = h.finalText; updateCharcount(); trackEdited();
   });
 
   function maybeTrackBuilt() {
     if (h.resultChoice && h.criterionChoice)
-      ctx.storage.track("hypothesis_built", { runId: state.runId, result: h.resultChoice, criterion: h.criterionChoice });
+      ctx.storage.track("hypothesis_built", { result: h.resultChoice, criterion: h.criterionChoice });
   }
   const result = choiceRow(content.resultOptions, h.resultChoice,
     (id) => { h.resultChoice = id; syncPreview(); maybeTrackBuilt(); });
@@ -184,7 +190,7 @@ function step1(ctx) {
   function openEdit(fromScratch) {
     if (fromScratch) { area.value = ""; h.finalText = ""; }
     else { area.value = h.finalText; }
-    h.edited = true; ctx.update();
+    h.edited = true; ctx.update(); trackEdited();
     editWrap.style.display = "";
     preview.textContent = h.finalText;
     updateCharcount();
@@ -255,16 +261,17 @@ function step2(ctx) {
     card.addEventListener("click", () => {
       const sel = state.tools.selected;
       const i = sel.indexOf(tool.id);
+      let action;
       if (i >= 0) {
-        sel.splice(i, 1); card.classList.remove("selected"); card.setAttribute("aria-pressed", "false"); msg.textContent = "";
+        sel.splice(i, 1); card.classList.remove("selected"); card.setAttribute("aria-pressed", "false"); msg.textContent = ""; action = "removed";
       } else if (sel.length >= t.maxTools) {
         msg.textContent = t.fourthAttempt;
-        ctx.storage.track("tool_budget_exceeded", { runId: state.runId, tool: tool.id });
+        ctx.storage.track("tool_budget_exceeded", { tool: tool.id, set: [...sel] });
         return;
       } else {
-        sel.push(tool.id); card.classList.add("selected"); card.setAttribute("aria-pressed", "true"); msg.textContent = "";
+        sel.push(tool.id); card.classList.add("selected"); card.setAttribute("aria-pressed", "true"); msg.textContent = ""; action = "added";
       }
-      ctx.storage.track("tool_toggled", { runId: state.runId, tool: tool.id, count: sel.length });
+      ctx.storage.track("tool_toggled", { tool: tool.id, action, count: sel.length });
       ctx.update(); refresh();
     });
     return card;
@@ -294,7 +301,7 @@ function step2(ctx) {
       const arr = state.tools.gaps;
       const i = arr.indexOf(g.id);
       if (i >= 0) { arr.splice(i, 1); chip.classList.remove("selected"); }
-      else { arr.push(g.id); chip.classList.add("selected"); ctx.storage.track("tool_gap", { runId: state.runId, gap: g.id }); }
+      else { arr.push(g.id); chip.classList.add("selected"); ctx.storage.track("tool_gap_selected", { gap: g.id }); }
       ctx.update();
     });
     gapsRow.appendChild(chip);
@@ -358,7 +365,7 @@ function step3(ctx) {
         ctx.update();
         consequence.textContent = consequenceFor(id);
         foot.querySelector(".primary").disabled = false;
-        ctx.storage.track("step3_choice", { runId: state.runId, choice: id });
+        ctx.storage.track("test_decision", { decision: id });
       }
     );
     stage.appendChild(fieldset(t.question, choice));
@@ -437,7 +444,7 @@ function step4(ctx) {
   function select(id) {
     state.publishChannel = id;
     ctx.update();
-    ctx.storage.track("channel_chosen", { runId: state.runId, channel: id });
+    ctx.storage.track("channel_selected", { channel: id, wasRecommended: tc.reco.includes(id) });
     const locEl = head.querySelector(".loc");
     if (locEl) locEl.textContent = locFor();
     foot.querySelector(".primary").disabled = false;
@@ -515,7 +522,7 @@ function step5(ctx) {
       ctx.update();
       consequence.textContent = content.step5Consequence[id];
       foot.querySelector(".primary").disabled = false;
-      ctx.storage.track("step5_choice", { runId: state.runId, choice: id });
+      ctx.storage.track("monitor_decision", { decision: id });
     }
   );
 
@@ -565,9 +572,9 @@ function final(ctx) {
   wrap.appendChild(el("p", { class: "intro" }, v.congrats));
 
   // Передача стендисту и код завершения (для всех вариантов).
+  // Показ финала фиксируется через final_viewed при входе на экран.
   wrap.appendChild(el("p", { class: "stand-handoff" }, f.standHandoff));
   const code = giftCode(state.runId);
-  ctx.storage.track("code_issued", { runId: state.runId, code, variant: key });
   wrap.appendChild(el("div", { class: "code" },
     el("div", { class: "code-label" }, f.codeLabel),
     el("div", { class: "code-value" }, code),
@@ -585,7 +592,7 @@ function final(ctx) {
       rel: isUrl ? "noopener noreferrer" : null,
       onclick: (e) => {
         if (!isUrl) e.preventDefault();   // адрес пока заглушка, VERIFY:url
-        ctx.storage.track("cta_click", { runId: state.runId, cta: c.id });
+        ctx.storage.track("cta_clicked", { cta: c.id });
       }
     },
       el("div", { class: "cta-title" }, c.title),
@@ -624,7 +631,7 @@ function final(ctx) {
       if (!val) { contactMsg.textContent = f.contactNeedField; contactMsg.className = "contact-msg error"; return; }
       state.contact = val;
       ctx.update();
-      ctx.storage.saveContact(val, { runId: state.runId, task: state.ownTaskText || task.title })
+      ctx.storage.saveContact(val, { sessionId: state.runId, task: state.ownTaskText || task.title })
         .then(() => { contactMsg.textContent = f.contactOk; contactMsg.className = "contact-msg ok"; })
         .catch(() => { contactMsg.textContent = content.system.contactError; contactMsg.className = "contact-msg error"; });
     }
@@ -646,7 +653,7 @@ function final(ctx) {
     state.awarenessAfter,
     (id) => {
       state.awarenessAfter = id; ctx.update();
-      ctx.storage.track("awareness_after", { runId: state.runId, before: state.awarenessBefore, value: id });
+      ctx.storage.track("knows_after_answered", { value: id });
       reflectShift(id);
     }
   );
@@ -658,13 +665,14 @@ function final(ctx) {
   const ownNext = el("input", { class: "text-field", type: "text", placeholder: f.nextStepOwnPlaceholder });
   ownNext.value = v.nextSteps.includes(state.nextStepText) ? "" : (state.nextStepText || "");
   const chips = el("div", { class: "choices" });
-  v.nextSteps.forEach((s) => {
+  v.nextSteps.forEach((s, i) => {
     const chip = el("button", { class: "choice small" + (state.nextStepText === s ? " selected" : "") }, s);
     chip.addEventListener("click", () => {
       [...chips.children].forEach((c) => c.classList.remove("selected"));
       chip.classList.add("selected");
       state.nextStepText = s; ownNext.value = ""; ctx.update();
-      ctx.storage.track("next_step", { runId: state.runId, choice: s });
+      // В аналитику — только индекс предложенного шага, без сырого текста.
+      ctx.storage.track("next_step_chosen", { preset: true, index: i });
     });
     chips.appendChild(chip);
   });
@@ -692,9 +700,11 @@ function anketa(ctx) {
     .map((id) => content.gapOptions.find((g) => g.id === id)?.label)
     .filter(Boolean).join(", ");
 
+  const inputs = [];
   a.questions.forEach((q) => {
     const input = el("input", { class: "text-field", type: "text" });
     if (q.prefill === "gaps" && gapLabels) input.value = gapLabels;
+    inputs.push(input);
     wrap.appendChild(fieldset(q.text, input));
   });
 
@@ -705,7 +715,9 @@ function anketa(ctx) {
     el("button", {
       class: "primary",
       onclick: () => {
-        ctx.storage.track("anketa_submit", { runId: state.runId });
+        // В аналитику — только признаки заполнения полей, без сырого текста.
+        const fields = inputs.map((inp) => inp.value.trim().length > 0);
+        ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
         done.style.display = "";
         restart.style.display = "";
       }

@@ -2,12 +2,13 @@
 // Держит состояние прохождения, переносит его между экранами, сохраняет
 // прогресс и восстанавливает после перезагрузки/обрыва связи.
 
-import content, { flow, createInitialState, SCHEMA_VERSION } from "./data.js";
+import content, { flow, createInitialState, SCHEMA_VERSION, GAME_VERSION } from "./data.js";
 import * as storage from "./storage.js";
 import { screens } from "./screens.js";
 import { el, tpl } from "./dom.js";
 
 const root = document.getElementById("app");
+const stepNoMap = { step1: 1, step2: 2, step3: 3, step4: 4, step5: 5 };
 
 // Восстановление: если есть сохранённый прогресс — продолжаем оттуда.
 // Несовместимую по версии схемы сессию не восстанавливаем, начинаем заново.
@@ -18,46 +19,80 @@ let state = validSaved?.state ?? createInitialState();
 let screen = validSaved?.screen ?? flow[0];
 let resuming = Boolean(validSaved) && screen !== flow[0]; // показать баннер один раз
 
-if (!saved) storage.track("game_start", { runId: state.runId });
+// Общие параметры к каждому событию: анонимный sessionId, версия, задача, шаг,
+// время с начала сессии и время на шаге. Настраиваем до первых событий.
+storage.configure({
+  version: GAME_VERSION,
+  context: () => ({
+    sessionId: state.runId,
+    task: state.task,
+    step: state.currentStep,
+    stepNo: stepNoMap[state.currentStep] ?? null,
+    sinceStart: Date.now() - (state.createdAt || Date.now()),
+    onStep: Date.now() - (state.stepStartedAt || Date.now())
+  })
+});
 
-// Номер шага для индикатора и баннера восстановления.
+// Открытие страницы и, при наличии, источник QR-метки (?src=…).
+const qrSource = new URLSearchParams(location.search).get("src");
+storage.track("game_opened", qrSource ? { qrSource } : {});
+if (resuming) storage.track("session_resumed", { step: screen, status: state.status });
+
+// Номер шага для баннера восстановления.
 function stepLabel(id) {
-  const map = { step1: 1, step2: 2, step3: 3, step4: 4, step5: 5 };
-  return map[id] ?? null;
+  return stepNoMap[id] ?? null;
 }
 
 function persist() {
-  storage.saveProgress({ screen, state });
+  const ok = storage.saveProgress({ screen, state });
+  if (ok === false) storage.track("network_error", { operation: "save_progress", step: screen });
 }
 
-// Навигация. Только вперёд/назад по flow, без перескоков.
-function go(id) {
+// События входа на экран: шаг, финал или анкета.
+function trackEntry(id) {
+  if (stepNoMap[id]) storage.track("step_viewed", { step: id, stepNo: stepNoMap[id] });
+  else if (id === "final") storage.track("final_viewed", { variant: state.finalVariant || state.step5Choice });
+  else if (id === "anketa") storage.track("survey_opened");
+}
+
+// Навигация. Только вперёд/назад по flow, без перескоков. dir — направление.
+function go(id, dir) {
   if (!screens[id]) return;
+  const from = screen;
+  const wasNew = state.status === "new";
+  // Завершение шага при движении вперёд — фиксируем один раз с длительностью.
+  if (dir === "next" && stepNoMap[from]) {
+    storage.track("step_completed", { step: from, stepNo: stepNoMap[from], duration: Date.now() - state.stepStartedAt });
+  }
+  if (dir === "back") storage.track("back_clicked", { from, to: id });
+
   screen = id;
   state.currentStep = id;
   state.updatedAt = Date.now();
   state.stepStartedAt = Date.now();
   if (id !== flow[0] && state.status === "new") state.status = "started";
+  if (from === "step0" && id === "step1" && wasNew) storage.track("game_started", { taskId: state.task });
   if (id === "final") state.status = "finished";
   resuming = false;
   persist();
-  storage.track("screen", { runId: state.runId, screen });
+  trackEntry(id);
   render();
 }
 function next() {
   const i = flow.indexOf(screen);
-  if (i >= 0 && i < flow.length - 1) go(flow[i + 1]);
+  if (i >= 0 && i < flow.length - 1) go(flow[i + 1], "next");
 }
 function back() {
   const i = flow.indexOf(screen);
-  if (i > 0) go(flow[i - 1]);
+  if (i > 0) go(flow[i - 1], "back");
 }
 function restart() {
+  const prevStatus = state.status;
   state = createInitialState();
   screen = flow[0];
   resuming = false;
   storage.clearProgress();
-  storage.track("game_start", { runId: state.runId });
+  storage.track("game_restarted", { prevStatus });
   render();
 }
 
