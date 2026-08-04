@@ -13,16 +13,16 @@ const CONTACTS_KEY = "konfur:contacts"; // контакты и свободны�
 // сводку прохождения. Поток мелких событий остаётся локальным.
 // Пока адрес формы и id полей пустые — данные пишутся только локально.
 // Как заполнить — в docs/analytics-google-form.md.
-const FORM_URL = "";              // адрес .../formResponse
+const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeLUg_LiEYvZInkQw-tCBHvyJiCfZza4peXwEqo9nVpa82Seg/formResponse";
 const ENTRY = {                   // id полей формы (entry.XXXXXX)
-  kind: "",
-  sessionId: "",
-  contact: "",
-  task: "",
-  decision: "",
-  answer1: "",
-  answer2: "",
-  payload: ""
+  kind: "entry.1700049977",
+  sessionId: "entry.1240554086",
+  contact: "entry.1135647981",
+  task: "entry.1424964298",
+  decision: "entry.1271929800",
+  answer1: "entry.2057593413",
+  answer2: "entry.1928953258",
+  payload: "entry.1535032346"
 };
 
 // Отправка одной строки в Google Форму. Кодировка формы — «простой» запрос,
