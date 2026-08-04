@@ -6,13 +6,43 @@
   <meta name="theme-color" content="#132F5A">
   <title>Пилот за пять шагов</title>
   <link rel="preload" href="fonts/tektur-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="fonts/fonts.css">
-  <link rel="stylesheet" href="styles.css">
+  <script>
+    // ── Единственное место с версией сборки ───────────────────────────────
+    // Меняем ТОЛЬКО это число при релизе и держим равным GAME_VERSION в data.js.
+    // Версия дописывается ко всем модулям и стилям как ?v=…, поэтому браузер
+    // берёт свежие файлы сразу после деплоя, не дожидаясь истечения кеша
+    // (GitHub Pages отдаёт их с max-age=600, то есть до 10 минут старую копию).
+    // Шрифты (.woff2) не версионируем — они не меняются и весят много.
+    (function () {
+      var V = "0.6.1";
+      window.__BUILD_V = V;
+      var head = document.head;
+      function link(href) {
+        var e = document.createElement("link");
+        e.rel = "stylesheet"; e.href = href; head.appendChild(e);
+      }
+      link("fonts/fonts.css?v=" + V);
+      link("styles.css?v=" + V);
+      // Карта импортов: относительные модули отдаются с версией. Ключ и импорт
+      // резолвятся в один абсолютный адрес, поэтому подхватываются и вложенные
+      // импорты (screens.js → data.js и т.д.) — сам код менять не нужно.
+      var mods = ["app.js", "data.js", "screens.js", "storage.js", "dom.js"];
+      var imports = {};
+      mods.forEach(function (m) { imports["./" + m] = "./" + m + "?v=" + V; });
+      var im = document.createElement("script");
+      im.type = "importmap";
+      im.textContent = JSON.stringify({ imports: imports });
+      head.appendChild(im);
+      // Точка входа с версией; её импорты подхватывают карту выше.
+      var entry = document.createElement("script");
+      entry.type = "module"; entry.src = "app.js?v=" + V;
+      head.appendChild(entry);
+    })();
+  </script>
 </head>
 <body>
   <main id="app">
     <noscript>Для игры нужен включённый JavaScript.</noscript>
   </main>
-  <script type="module" src="app.js"></script>
 </body>
 </html>

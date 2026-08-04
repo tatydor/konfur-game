@@ -7,6 +7,12 @@ import * as storage from "./storage.js";
 import { screens } from "./screens.js";
 import { el, tpl } from "./dom.js";
 
+// Версия кеша из index.html должна совпадать с GAME_VERSION. Если забыли
+// синхронизировать при релизе — предупреждаем в консоль, игру не ломаем.
+if (typeof window !== "undefined" && window.__BUILD_V && window.__BUILD_V !== GAME_VERSION) {
+  console.warn(`Версия кеша (${window.__BUILD_V}) ≠ GAME_VERSION (${GAME_VERSION}). Синхронизируйте index.html и data.js.`);
+}
+
 const root = document.getElementById("app");
 const stepNoMap = { step1: 1, step2: 2, step3: 3, step4: 4, step5: 5 };
 
