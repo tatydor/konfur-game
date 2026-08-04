@@ -720,6 +720,7 @@ function final(ctx) {
     el("div", { class: "legend" }, f.nextStepPrompt), chips, ownNext
   ));
 
+  wrap.appendChild(el("p", { class: "intro" }, f.toAnketaCaption));
   wrap.appendChild(nav(ctx, { nextLabel: f.toAnketa }));
   return wrap;
 }
