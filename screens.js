@@ -594,27 +594,46 @@ function final(ctx) {
   }
   wrap.appendChild(ctas);
 
-  // Добровольный контакт, хранится отдельно от прогресса.
+  // Один добровольный сценарий контакта: раскрывается по нажатию, на подарок не
+  // влияет, повторно не спрашивается. Хранится отдельно от прогресса.
+  const contactForm = el("div", { class: "contact-form", style: "display:none" });
   const contactInput = el("input", { class: "text-field", type: "text", placeholder: f.contactPlaceholder });
   contactInput.value = state.contact || "";
+  contactInput.addEventListener("input", () => { state.contact = contactInput.value; });
+
+  const openContact = el("button", {
+    class: "ghost wide",
+    onclick: () => { contactForm.style.display = ""; openContact.style.display = "none"; contactInput.focus(); }
+  }, f.contactCta);
+
+  contactForm.append(el("p", { class: "cta-sub" }, f.contactExplain), contactInput);
+
+  // Короткое поле задачи — только если её не вводили раньше (не «своя задача»).
+  if (state.task !== "own") {
+    const taskInput = el("input", { class: "text-field", type: "text", placeholder: f.contactTaskPlaceholder });
+    taskInput.value = state.ownTaskText || "";
+    taskInput.addEventListener("input", () => { state.ownTaskText = taskInput.value; ctx.update(); });
+    contactForm.appendChild(taskInput);
+  }
+
   const contactMsg = el("div", { class: "contact-msg" });
   const contactBtn = el("button", {
-    class: "ghost small",
+    class: "primary wide",
     onclick: () => {
       const val = contactInput.value.trim();
-      if (!val) return;
+      if (!val) { contactMsg.textContent = f.contactNeedField; contactMsg.className = "contact-msg error"; return; }
       state.contact = val;
       ctx.update();
-      ctx.storage.saveContact(val, { runId: state.runId })
-        .then(() => { contactMsg.textContent = "Записали, пришлём."; contactMsg.className = "contact-msg ok"; })
+      ctx.storage.saveContact(val, { runId: state.runId, task: state.ownTaskText || task.title })
+        .then(() => { contactMsg.textContent = f.contactOk; contactMsg.className = "contact-msg ok"; })
         .catch(() => { contactMsg.textContent = content.system.contactError; contactMsg.className = "contact-msg error"; });
     }
-  }, "Отправить");
-  wrap.appendChild(el("div", { class: "field" },
-    el("div", { class: "legend" }, f.contactPrompt),
-    el("div", { class: "contact-row" }, contactInput, contactBtn),
-    contactMsg
-  ));
+  }, f.contactSend);
+  contactForm.append(contactBtn, contactMsg);
+
+  // Если контакт уже оставлен, показываем форму раскрытой.
+  if (state.contact) { contactForm.style.display = ""; openContact.style.display = "none"; }
+  wrap.appendChild(el("div", { class: "field" }, openContact, contactForm));
 
   // Повтор базового вопроса — замер сдвига, ответ связываем со входом.
   const shiftNote = el("div", { class: "shift-note" });
@@ -668,15 +687,15 @@ function anketa(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ title: a.title, intro: a.intro }));
 
-  // Второй вопрос предзаполняем тем, что отмечено на шаге 2.
+  // Вопрос «чего не хватило» предзаполняем тем, что отмечено на шаге 2.
   const gapLabels = state.tools.gaps
     .map((id) => content.gapOptions.find((g) => g.id === id)?.label)
     .filter(Boolean).join(", ");
 
-  a.questions.forEach((q, idx) => {
+  a.questions.forEach((q) => {
     const input = el("input", { class: "text-field", type: "text" });
-    if (idx === 1 && gapLabels) input.value = gapLabels;
-    wrap.appendChild(fieldset(q, input));
+    if (q.prefill === "gaps" && gapLabels) input.value = gapLabels;
+    wrap.appendChild(fieldset(q.text, input));
   });
 
   const done = el("div", { class: "thanks", style: "display:none" }, a.thanks);
