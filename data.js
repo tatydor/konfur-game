@@ -500,6 +500,16 @@ function newRunId() {
 // Порядок экранов: линейная цепочка без перескоков.
 export const flow = ["step0", "step1", "step2", "step3", "step4", "step5", "final", "anketa"];
 
+// Карта пути: пять узлов над экранами шагов. Названия совпадают с постером
+// и финальной карточкой. Узлы — указатель, перескакивать по ним нельзя.
+export const pathMap = [
+  { step: "step1", label: "Гипотеза" },
+  { step: "step2", label: "Инструменты" },
+  { step: "step3", label: "Проверка" },
+  { step: "step4", label: "Публикация" },
+  { step: "step5", label: "Наблюдение" }
+];
+
 // Удобный доступ к задаче по id.
 export const taskById = Object.fromEntries(tasks.map((t) => [t.id, t]));
 export const toolById = Object.fromEntries(tools.map((t) => [t.id, t]));
@@ -512,7 +522,7 @@ export const content = {
   tools, toolById, taskTools, gapOptions,
   channels, channelById, taskChannels,
   step3Consequence, metricsPanel, criterionMetrics, step5Consequence,
-  ui, final, anketa, system, flow
+  ui, final, anketa, system, flow, pathMap
 };
 
 export default content;

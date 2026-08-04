@@ -75,13 +75,22 @@ const ctx = {
   get screen() { return screen; }
 };
 
-function progressBar() {
-  const n = stepLabel(screen);
-  const bar = el("div", { class: "progress" });
-  for (let i = 1; i <= 5; i++) {
-    bar.appendChild(el("span", { class: "dot" + (n && i <= n ? " done" : "") }));
-  }
-  return bar;
+// Карта пути: пять названных узлов, текущий подсвечен, пройденные отмечены.
+// Узлы — только указатель, по ним нельзя перескакивать между шагами.
+function pathMapEl() {
+  const idx = content.pathMap.findIndex((n) => n.step === screen);
+  const map = el("div", { class: "pathmap", role: "list", "aria-label": "Карта пути" });
+  content.pathMap.forEach((node, i) => {
+    const status = i < idx ? "done" : i === idx ? "current" : "upcoming";
+    map.appendChild(el("div", {
+      class: "node " + status, role: "listitem",
+      "aria-current": status === "current" ? "step" : null
+    },
+      el("span", { class: "node-dot" }, status === "done" ? "✓" : String(i + 1)),
+      el("span", { class: "node-label" }, node.label)
+    ));
+  });
+  return map;
 }
 
 function resumeBanner() {
@@ -95,7 +104,8 @@ function resumeBanner() {
 function render() {
   root.innerHTML = "";
   const view = el("div", { class: "screen", "data-screen": screen });
-  if (stepLabel(screen)) view.appendChild(progressBar());
+  // Карта пути видна на входе (как превью пути) и на всех пяти шагах.
+  if (screen === "step0" || content.pathMap.some((n) => n.step === screen)) view.appendChild(pathMapEl());
   if (resuming) view.appendChild(resumeBanner());
   view.appendChild(screens[screen](ctx));
   root.appendChild(view);
