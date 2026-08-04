@@ -7,6 +7,12 @@ import { resetDependentOnTask, buildHypothesis } from "./data.js";
 
 const HYP_MAX = 220; // предел длины гипотезы
 
+// Заготовка гипотезы. У своей задачи в шаблон подставляется введённый текст
+// (state.ownTaskText непустой — этого требует переход с входного экрана).
+function seedFor(state, task) {
+  return task.id === "own" ? tpl(task.seed, { ownTaskText: state.ownTaskText.trim() }) : task.seed;
+}
+
 // ── Общие детали ──────────────────────────────────────────────
 function header(cfg) {
   return el("header", { class: "head" },
@@ -158,7 +164,7 @@ function step1(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  if (!h.seedShown) h.seedShown = task.seed;
+  if (!h.seedShown) h.seedShown = seedFor(state, task);
 
   // Живое превью гипотезы: собирается из выбора результата и критерия,
   // пока игрок не начал править текст руками (тогда правка ведёт превью).
@@ -579,7 +585,7 @@ function final(ctx) {
     value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
   wrap.appendChild(el("div", { class: "final-card" },
     el("h1", { class: "card-title", tabindex: "-1" }, title),
-    kv(f.cardHypothesisLabel, state.hypothesis.finalText || task.seed),
+    kv(f.cardHypothesisLabel, state.hypothesis.finalText || seedFor(state, task)),
     kv(f.cardToolsLabel, toolNames.join(", ")),
     kv(f.cardLaunchLabel, launchNote),
     kv(f.cardChannelLabel, channelName),
@@ -680,24 +686,16 @@ function final(ctx) {
   }
   wrap.appendChild(el("div", { class: "field" }, openContact, contactForm));
 
-  // Повтор базового вопроса — замер сдвига, ответ связываем со входом.
-  const shiftNote = el("div", { class: "shift-note", "aria-live": "polite" });
-  function reflectShift(after) {
-    shiftNote.textContent = (state.awarenessBefore === "no" && after === "yes")
-      ? "На входе было «нет» — это и есть сдвиг, за которым мы пришли." : "";
-  }
+  // Повтор базового вопроса — замер сдвига уходит в аналитику, игроку не показываем.
   const awareness = choiceRow(
     [{ id: "yes", label: f.awarenessYes }, { id: "no", label: f.awarenessNo }],
     state.awarenessAfter,
     (id) => {
       state.awarenessAfter = id; ctx.update();
       ctx.storage.track("knows_after_answered", { value: id });
-      reflectShift(id);
     }
   );
   wrap.appendChild(fieldset(f.awarenessRepeat, awareness));
-  wrap.appendChild(shiftNote);
-  reflectShift(state.awarenessAfter);
 
   // Следующий шаг: подсказки под вариант, можно выбрать или вписать свой.
   const ownNext = el("input", { class: "text-field", type: "text", placeholder: f.nextStepOwnPlaceholder, "aria-label": f.nextStepPrompt });
