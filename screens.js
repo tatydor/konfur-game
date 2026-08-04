@@ -531,42 +531,63 @@ function final(ctx) {
   const { content, state } = ctx;
   const f = content.final;
   const task = content.taskById[state.task];
+  // Вариант финала определяется решением шага 5.
+  const key = state.finalVariant || state.step5Choice || "scale";
+  const v = f.variants[key] || f.variants.scale;
   const wrap = el("div");
 
   const title = state.name
-    ? tpl(f.cardTitleNamedTemplate, { name: state.name, task: task.title })
-    : tpl(f.cardTitleTemplate, { task: task.title });
+    ? tpl(v.cardTitleNamedTemplate, { name: state.name, task: task.title })
+    : tpl(v.cardTitleTemplate, { task: task.title });
 
   const toolNames = (state.tools.selected.length ? state.tools.selected : task.tools)
     .map((id) => content.toolById[id]?.name).filter(Boolean);
-
-  // Решение шага 3 отражаем как режим запуска пилота, шага 4 — как канал.
   const launchNote = state.step3Choice ? task.check?.[state.step3Choice]?.launch : null;
   const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
+  const crit = content.criterionOptions.find((c) => c.id === state.hypothesis.criterionChoice);
+  const decisionLabel = f.decisionLabels[key];
 
+  // Итоговая карточка: весь путь одним взглядом, для игрока и стендиста.
+  const kv = (label, value) =>
+    value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
   wrap.appendChild(el("div", { class: "final-card" },
     el("div", { class: "card-title" }, title),
-    el("div", { class: "kv" }, el("b", {}, f.cardHypothesisLabel + ": "), state.hypothesis.finalText || task.seed),
-    el("div", { class: "kv" }, el("b", {}, f.cardToolsLabel + ": "), toolNames.join(", ")),
-    launchNote ? el("div", { class: "kv" }, el("b", {}, f.cardLaunchLabel + ": "), launchNote) : null,
-    channelName ? el("div", { class: "kv" }, el("b", {}, f.cardChannelLabel + ": "), channelName) : null,
+    kv(f.cardHypothesisLabel, state.hypothesis.finalText || task.seed),
+    kv(f.cardToolsLabel, toolNames.join(", ")),
+    kv(f.cardLaunchLabel, launchNote),
+    kv(f.cardChannelLabel, channelName),
+    kv(f.cardCheckLabel, crit ? crit.phrase : null),
+    kv(f.cardResultLabel, v.resultShort),
+    kv(f.cardDecisionLabel, decisionLabel),
     el("div", { class: "muted" }, f.cardFooter)
   ));
 
-  wrap.appendChild(el("p", { class: "intro" }, f.congrats));
+  wrap.appendChild(el("p", { class: "intro" }, v.congrats));
 
+  // Передача стендисту и код завершения (для всех вариантов).
+  wrap.appendChild(el("p", { class: "stand-handoff" }, f.standHandoff));
   const code = giftCode(state.runId);
-  ctx.storage.track("code_issued", { runId: state.runId, code });
+  ctx.storage.track("code_issued", { runId: state.runId, code, variant: key });
   wrap.appendChild(el("div", { class: "code" },
     el("div", { class: "code-label" }, f.codeLabel),
     el("div", { class: "code-value" }, code),
     el("div", { class: "muted" }, f.codeHint)
   ));
 
-  // Призывы к действию.
+  // Рабочие призывы к действию: семантические ссылки, новая вкладка, учёт нажатий.
   const ctas = el("div", { class: "ctas" });
   for (const c of f.ctas) {
-    ctas.appendChild(el("div", { class: "cta" },
+    const isUrl = /^https?:\/\//.test(c.href || "");
+    ctas.appendChild(el("a", {
+      class: "cta",
+      href: c.href || "#",
+      target: isUrl ? "_blank" : null,
+      rel: isUrl ? "noopener noreferrer" : null,
+      onclick: (e) => {
+        if (!isUrl) e.preventDefault();   // адрес пока заглушка, VERIFY:url
+        ctx.storage.track("cta_click", { runId: state.runId, cta: c.id });
+      }
+    },
       el("div", { class: "cta-title" }, c.title),
       el("div", { class: "cta-sub" }, c.sub)
     ));
@@ -580,11 +601,11 @@ function final(ctx) {
   const contactBtn = el("button", {
     class: "ghost small",
     onclick: () => {
-      const v = contactInput.value.trim();
-      if (!v) return;
-      state.contact = v;
+      const val = contactInput.value.trim();
+      if (!val) return;
+      state.contact = val;
       ctx.update();
-      ctx.storage.saveContact(v, { runId: state.runId })
+      ctx.storage.saveContact(val, { runId: state.runId })
         .then(() => { contactMsg.textContent = "Записали, пришлём."; contactMsg.className = "contact-msg ok"; })
         .catch(() => { contactMsg.textContent = content.system.contactError; contactMsg.className = "contact-msg error"; });
     }
@@ -595,18 +616,46 @@ function final(ctx) {
     contactMsg
   ));
 
-  // Повтор базового вопроса — замер сдвига.
+  // Повтор базового вопроса — замер сдвига, ответ связываем со входом.
+  const shiftNote = el("div", { class: "shift-note" });
+  function reflectShift(after) {
+    shiftNote.textContent = (state.awarenessBefore === "no" && after === "yes")
+      ? "На входе было «нет» — это и есть сдвиг, за которым мы пришли." : "";
+  }
   const awareness = choiceRow(
     [{ id: "yes", label: f.awarenessYes }, { id: "no", label: f.awarenessNo }],
     state.awarenessAfter,
-    (id) => { state.awarenessAfter = id; ctx.update(); ctx.storage.track("awareness_after", { runId: state.runId, value: id }); }
+    (id) => {
+      state.awarenessAfter = id; ctx.update();
+      ctx.storage.track("awareness_after", { runId: state.runId, before: state.awarenessBefore, value: id });
+      reflectShift(id);
+    }
   );
   wrap.appendChild(fieldset(f.awarenessRepeat, awareness));
+  wrap.appendChild(shiftNote);
+  reflectShift(state.awarenessAfter);
 
-  const nextStep = el("input", { class: "text-field", type: "text" });
-  nextStep.value = state.nextStepText || "";
-  nextStep.addEventListener("input", () => { state.nextStepText = nextStep.value; ctx.update(); });
-  wrap.appendChild(fieldset(f.nextStepPrompt, nextStep));
+  // Следующий шаг: подсказки под вариант, можно выбрать или вписать свой.
+  const ownNext = el("input", { class: "text-field", type: "text", placeholder: f.nextStepOwnPlaceholder });
+  ownNext.value = v.nextSteps.includes(state.nextStepText) ? "" : (state.nextStepText || "");
+  const chips = el("div", { class: "choices" });
+  v.nextSteps.forEach((s) => {
+    const chip = el("button", { class: "choice small" + (state.nextStepText === s ? " selected" : "") }, s);
+    chip.addEventListener("click", () => {
+      [...chips.children].forEach((c) => c.classList.remove("selected"));
+      chip.classList.add("selected");
+      state.nextStepText = s; ownNext.value = ""; ctx.update();
+      ctx.storage.track("next_step", { runId: state.runId, choice: s });
+    });
+    chips.appendChild(chip);
+  });
+  ownNext.addEventListener("input", () => {
+    [...chips.children].forEach((c) => c.classList.remove("selected"));
+    state.nextStepText = ownNext.value; ctx.update();
+  });
+  wrap.appendChild(el("div", { class: "field" },
+    el("div", { class: "legend" }, f.nextStepPrompt), chips, ownNext
+  ));
 
   wrap.appendChild(nav(ctx, { nextLabel: f.toAnketa }));
   return wrap;

@@ -225,10 +225,14 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 }
 .code-label { color: var(--muted); font-size: 0.85rem; }
 .code-value { font-size: 2.1rem; font-weight: 800; letter-spacing: 3px; color: var(--accent); margin: 4px 0; }
+.stand-handoff { color: var(--text); font-weight: 600; margin: 12px 0 0; }
 .ctas { display: grid; gap: 10px; margin: 16px 0; }
-.cta { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.cta { display: block; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; transition: border-color 0.2s; }
+a.cta:hover { border-color: var(--accent); }
+a.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cta-title { font-weight: 600; color: var(--accent); }
 .cta-sub { color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
+.shift-note { color: var(--accent); font-size: 0.86rem; min-height: 1.1em; margin: 6px 0 0; }
 .contact-row { display: flex; gap: 8px; }
 .contact-row .text-field { flex: 1; }
 .contact-msg { min-height: 1.1em; font-size: 0.86rem; margin-top: 6px; }
