@@ -8,12 +8,38 @@ const EVENTS_KEY = "konfur:events";     // локальный журнал (ко
 const QUEUE_KEY = "konfur:queue";       // неотправленные события — ждут связи
 const CONTACTS_KEY = "konfur:contacts"; // контакты и свободные тексты — отдельно от аналитики
 
-// Внешний приёмник — веб-приложение Google Apps Script, привязанное к таблице.
-// Пока пусто — данные пишутся только локально (заглушка). После публикации скрипта
-// вставить сюда адрес и то же секретное слово, что в скрипте, — сбор оживёт.
-// Инструкция и код скрипта: docs/analytics-google-sheets.md
-const INGEST_URL = "";
-const INGEST_TOKEN = "";
+// Внешний приёмник — Google Форма (ответы копятся в связанной таблице).
+// Форма принимает две строки на игрока: контакт с запросом на разбор и короткую
+// сводку прохождения. Поток мелких событий остаётся локальным.
+// Пока адрес формы и id полей пустые — данные пишутся только локально.
+// Как заполнить — в docs/analytics-google-form.md.
+const FORM_URL = "";              // адрес .../formResponse
+const ENTRY = {                   // id полей формы (entry.XXXXXX)
+  kind: "",
+  sessionId: "",
+  contact: "",
+  task: "",
+  decision: "",
+  answer1: "",
+  answer2: "",
+  payload: ""
+};
+
+// Отправка одной строки в Google Форму. Кодировка формы — «простой» запрос,
+// поэтому предзапроса CORS нет; ответ непрозрачный (no-cors), сбой сети ловим.
+export function submitForm(fields) {
+  if (!FORM_URL || typeof fetch === "undefined") return Promise.reject(new Error("no form"));
+  const params = new URLSearchParams();
+  for (const [key, entryId] of Object.entries(ENTRY)) {
+    if (entryId && fields[key] != null) params.append(entryId, String(fields[key]));
+  }
+  return fetch(FORM_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: params.toString()
+  });
+}
 
 // Общие параметры событий задаёт app.js через configure(): версия игры и
 // провайдер контекста (анонимный sessionId, задача, шаг, время сессии и шага).
@@ -65,46 +91,17 @@ function readList(key) {
   try { return raw ? JSON.parse(raw) : []; } catch { return []; }
 }
 
-// Отправка на внешний приёмник. Простой POST без предзапроса CORS:
-// text/plain + no-cors, поэтому ответ непрозрачный — доставку считаем по факту
-// того, что запрос ушёл, а сбой сети ловим в catch и оставляем в очереди.
-function postToSink(kind, payload) {
-  if (!INGEST_URL || typeof fetch === "undefined") return Promise.reject(new Error("no sink"));
-  return fetch(INGEST_URL, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ token: INGEST_TOKEN, kind, ...payload })
-  });
-}
-
-// Отправка неотправленных событий. Есть внешний приёмник — шлём пачкой и по
-// доставке убираем отправленное из очереди; нет — переносим в локальный журнал.
-// Офлайн — оставляем в очереди до связи. Одна отправка за раз, без дублей.
-let flushing = false;
+// Поток событий копится в локальном журнале. Пока связь есть — переносим очередь
+// в журнал, офлайн — оставляем в очереди до восстановления связи.
 function flushQueue() {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return;
   const queue = readList(QUEUE_KEY);
   if (!queue.length) return;
-  if (!INGEST_URL) {
-    try {
-      const sent = readList(EVENTS_KEY);
-      sent.push(...queue);
-      if (safeSet(EVENTS_KEY, JSON.stringify(sent))) safeRemove(QUEUE_KEY);
-    } catch { /* журнал недоступен — очередь остаётся до следующей попытки */ }
-    return;
-  }
-  if (flushing) return;
-  flushing = true;
-  const batch = queue.slice();
-  postToSink("events", { rows: batch })
-    .then(() => {
-      // Убираем только отправленное; события, добавленные во время отправки, остаются.
-      const rest = readList(QUEUE_KEY).slice(batch.length);
-      safeSet(QUEUE_KEY, JSON.stringify(rest));
-    })
-    .catch(() => { /* сеть недоступна — очередь остаётся до следующей попытки */ })
-    .finally(() => { flushing = false; if (readList(QUEUE_KEY).length) flushQueue(); });
+  try {
+    const sent = readList(EVENTS_KEY);
+    sent.push(...queue);
+    if (safeSet(EVENTS_KEY, JSON.stringify(sent))) safeRemove(QUEUE_KEY);
+  } catch { /* журнал недоступен — очередь остаётся до следующей попытки */ }
 }
 
 export function track(event, params = {}) {
@@ -134,8 +131,13 @@ export function saveContact(contact, meta = {}) {
     list.push(row);
     const ok = safeSet(CONTACTS_KEY, JSON.stringify(list));
     track("contact_submitted", { ok });
-    // На внешний приёмник контакт идёт отдельной строкой, в лист «contacts».
-    if (ok) postToSink("contact", { row }).catch(() => { /* лучшее усилие */ });
+    // Контакт с запросом на разбор — отдельной строкой в форму (kind=contact).
+    if (ok) {
+      submitForm({
+        kind: "contact", sessionId: meta.sessionId || "", contact,
+        task: meta.task || "", payload: JSON.stringify(row)
+      }).catch(() => { /* лучшее усилие, локальная копия уже сохранена */ });
+    }
     return ok ? Promise.resolve({ ok: true }) : Promise.reject(new Error("storage unavailable"));
   } catch (e) {
     track("contact_submitted", { ok: false });

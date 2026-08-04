@@ -520,6 +520,30 @@ export const pathMap = [
   { step: "step5", label: "Наблюдение" }
 ];
 
+// Короткая сводка прохождения для формы: человекочитаемые названия выборов и
+// ответы анкеты. Контакт сюда не кладём — он идёт отдельной строкой (kind=contact).
+export function buildSummary(state, answers = []) {
+  const toolNames = (state.tools.selected.length ? state.tools.selected : [])
+    .map((id) => toolById[id]?.name).filter(Boolean);
+  const gaps = state.tools.gaps
+    .map((id) => gapOptions.find((g) => g.id === id)?.label).filter(Boolean);
+  const crit = criterionOptions.find((c) => c.id === state.hypothesis.criterionChoice);
+  return {
+    sessionId: state.runId,
+    task: state.task,
+    decision: state.finalVariant || state.step5Choice || "",
+    awarenessBefore: state.awarenessBefore || "",
+    awarenessAfter: state.awarenessAfter || "",
+    tools: toolNames.join(", "),
+    channel: state.publishChannel ? (channelById[state.publishChannel]?.name || "") : "",
+    criterion: crit ? crit.label : "",
+    gaps: gaps.join(", "),
+    answer1: answers[0] || "",
+    answer2: answers[1] || "",
+    ts: Date.now()
+  };
+}
+
 // Удобный доступ к задаче по id.
 export const taskById = Object.fromEntries(tasks.map((t) => [t.id, t]));
 export const toolById = Object.fromEntries(tools.map((t) => [t.id, t]));
@@ -528,7 +552,7 @@ export const channelById = Object.fromEntries(channels.map((c) => [c.id, c]));
 // Единый объект контента, если удобнее импортировать одним куском.
 export const content = {
   tasks, taskById,
-  resultOptions, criterionOptions, taskAction, buildHypothesis,
+  resultOptions, criterionOptions, taskAction, buildHypothesis, buildSummary,
   tools, toolById, taskTools, gapOptions,
   channels, channelById, taskChannels,
   step3Consequence, metricsPanel, criterionMetrics, step5Consequence,

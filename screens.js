@@ -754,9 +754,17 @@ function anketa(ctx) {
     onclick: () => {
       if (submitted) return;               // повторное нажатие не создаёт дубликаты
       submitted = true; submitBtn.disabled = true;
-      // В аналитику — только признаки заполнения полей, без сырого текста.
-      const fields = inputs.map((inp) => inp.value.trim().length > 0);
+      const answers = inputs.map((inp) => inp.value.trim());
+      // В локальную аналитику — только признаки заполнения, без сырого текста.
+      const fields = answers.map((a) => a.length > 0);
       ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
+      // В форму — человекочитаемая сводка прохождения с ответами анкеты (kind=summary).
+      const summary = content.buildSummary(state, answers);
+      ctx.storage.submitForm({
+        kind: "summary", sessionId: state.runId, task: state.task,
+        decision: summary.decision, answer1: summary.answer1, answer2: summary.answer2,
+        payload: JSON.stringify(summary)
+      }).catch(() => { /* лучшее усилие */ });
       done.style.display = "";
       restart.style.display = "";
     }
