@@ -7,10 +7,12 @@ import { resetDependentOnTask, buildHypothesis } from "./data.js";
 
 const HYP_MAX = 220; // предел длины гипотезы
 
-// Заготовка гипотезы. У своей задачи в шаблон подставляется введённый текст
-// (state.ownTaskText непустой — этого требует переход с входного экрана).
-function seedFor(state, task) {
-  return task.id === "own" ? tpl(task.seed, { ownTaskText: state.ownTaskText.trim() }) : task.seed;
+// Заготовка гипотезы одним генератором: buildHypothesis с дефолтными значениями
+// задачи. Второго источника (поля seed) больше нет — превью, заготовка и итог
+// собираются этим же кодом. У своей задачи в действие подставляется введённый
+// текст (state.ownTaskText непустой — этого требует переход с входного экрана).
+function defaultHypothesis(state, task) {
+  return buildHypothesis(task.id, task.defaultResult, task.defaultCriterion, state.ownTaskText.trim());
 }
 
 // ── Общие детали ──────────────────────────────────────────────
@@ -164,7 +166,10 @@ function step1(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  if (!h.seedShown) h.seedShown = seedFor(state, task);
+  // Предвыбираем дефолтные результат и способ проверки задачи, чтобы заготовка,
+  // превью и итоговая гипотеза собирались одним buildHypothesis.
+  if (!h.resultChoice) h.resultChoice = task.defaultResult;
+  if (!h.criterionChoice) h.criterionChoice = task.defaultCriterion;
 
   // Живое превью гипотезы: собирается из выбора результата и критерия,
   // пока игрок не начал править текст руками (тогда правка ведёт превью).
@@ -181,9 +186,7 @@ function step1(ctx) {
   }
   function syncPreview() {
     if (!h.edited) {
-      h.finalText = (h.resultChoice || h.criterionChoice)
-        ? buildHypothesis(state.task, h.resultChoice, h.criterionChoice)
-        : h.seedShown;
+      h.finalText = buildHypothesis(state.task, h.resultChoice, h.criterionChoice, state.ownTaskText.trim());
       area.value = h.finalText;
     }
     preview.textContent = h.finalText;
@@ -193,7 +196,7 @@ function step1(ctx) {
   let editedTracked = false;
   const trackEdited = () => { if (!editedTracked) { editedTracked = true; ctx.storage.track("hypothesis_edited", {}); } };
 
-  area.value = h.finalText || h.seedShown;
+  area.value = h.finalText || defaultHypothesis(state, task);
   area.addEventListener("input", () => {
     h.finalText = area.value; h.edited = true; ctx.update();
     preview.textContent = h.finalText; updateCharcount(); trackEdited();
@@ -352,7 +355,7 @@ function step3(ctx) {
 
   // Собранная цепочка: выбранные на шаге 2 инструменты (или подсказка задачи),
   // показана до результата, чтобы читалась последовательность сборки.
-  const chainTools = (state.tools.selected.length ? state.tools.selected : task.tools)
+  const chainTools = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
     .map((id) => content.toolById[id]).filter(Boolean);
   const chainRow = el("div", { class: "chain-row" });
   chainTools.forEach((tl, i) => {
@@ -533,7 +536,10 @@ function step5(ctx) {
   for (const tile of tiles) metricsBox.appendChild(metric(tile.label, tile.value));
   wrap.appendChild(metricsBox);
 
-  wrap.appendChild(el("div", { class: "callout" }, task.problem));
+  // После «Доработать» показываем другую по природе поломку, чтобы доработка
+  // на шаге 3 не обесценивалась.
+  const problemText = state.step3Choice === "refine" ? (task.problemAfterRefine || task.problem) : task.problem;
+  wrap.appendChild(el("div", { class: "callout" }, problemText));
 
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step5Choice });
@@ -573,26 +579,29 @@ function final(ctx) {
     ? tpl(v.cardTitleNamedTemplate, { name: state.name, task: task.title })
     : tpl(v.cardTitleTemplate, { task: task.title });
 
-  const toolNames = (state.tools.selected.length ? state.tools.selected : task.tools)
+  const toolNames = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
     .map((id) => content.toolById[id]?.name).filter(Boolean);
   const launchNote = state.step3Choice ? task.check?.[state.step3Choice]?.launch : null;
   const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
   const crit = content.criterionOptions.find((c) => c.id === state.hypothesis.criterionChoice);
   const decisionLabel = f.decisionLabels[key];
+  // Подпись карточки ветвится по приоритету: остановка → есть «чего не хватило» → обычная.
+  const cardFooterText = state.step5Choice === "stop" ? f.cardFooterStop
+    : (state.tools.gaps.length ? f.cardFooterGaps : f.cardFooter);
 
   // Итоговая карточка: весь путь одним взглядом, для игрока и стендиста.
   const kv = (label, value) =>
     value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
   wrap.appendChild(el("div", { class: "final-card" },
     el("h1", { class: "card-title", tabindex: "-1" }, title),
-    kv(f.cardHypothesisLabel, state.hypothesis.finalText || seedFor(state, task)),
+    kv(f.cardHypothesisLabel, state.hypothesis.finalText || defaultHypothesis(state, task)),
     kv(f.cardToolsLabel, toolNames.join(", ")),
     kv(f.cardLaunchLabel, launchNote),
     kv(f.cardChannelLabel, channelName),
     kv(f.cardCheckLabel, crit ? crit.phrase : null),
     kv(f.cardResultLabel, v.resultShort),
     kv(f.cardDecisionLabel, decisionLabel),
-    el("div", { class: "muted" }, f.cardFooter)
+    el("div", { class: "muted" }, cardFooterText)
   ));
 
   wrap.appendChild(el("p", { class: "intro" }, v.congrats));
