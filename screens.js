@@ -88,12 +88,27 @@ function giftCode(runId) {
   return `К${first}-${digits}`;
 }
 
+// Линейные иконки задач: встроенный SVG, currentColor, без внешних файлов.
+const taskIcons = {
+  documents: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h6l4 4v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M9 12.5h6M9 16h4"/></svg>',
+  requests:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a7.5 7.5 0 0 1-10.9 6.7L4 20l1.8-5.3A7.5 7.5 0 1 1 21 11.5Z"/><path d="M9 11h6M9 14h3"/></svg>',
+  news:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12v13H5a1.5 1.5 0 0 1-1.5-1.5Z"/><path d="M16 9h3.5v8.5A1.5 1.5 0 0 1 18 19"/><path d="M7 9.5h6M7 12.5h6M7 15.5h4"/></svg>',
+  contract:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12S6 5.8 12 5.8 21.4 12 21.4 12 18 18.2 12 18.2 2.6 12 2.6 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>'
+};
+function taskIconEl(id) {
+  if (!taskIcons[id]) return null;
+  const s = el("span", { class: "card-icon", "aria-hidden": "true" });
+  s.innerHTML = taskIcons[id];
+  return s;
+}
+
 // ── Экран 0. Вход, выбор задачи, базовый вопрос ───────────────
 function step0(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step0;
-  const wrap = el("div");
-  wrap.appendChild(header({ title: t.title, intro: t.intro }));
+  const wrap = el("div", { class: "start" });
+  // Метка-плашка над заголовком, затем крупный заголовок и подводка.
+  wrap.appendChild(header({ location: t.badge, title: t.title, intro: t.intro }));
 
   const error = el("div", { class: "error", role: "alert" });
 
@@ -104,10 +119,13 @@ function step0(ctx) {
   ownField.addEventListener("input", () => { state.ownTaskText = ownField.value; ctx.update(); });
   ownWrap.append(el("p", { class: "own-explain" }, t.ownExplain), ownField);
 
+  // Четыре задачи сеткой два на два с иконками, своя задача — пунктирной
+  // карточкой во всю ширину под ними.
   const cards = el("div", { class: "cards" });
   for (const task of content.tasks) {
+    const own = task.id === "own";
     const card = el("button", {
-      class: "card" + (state.task === task.id ? " selected" : ""),
+      class: "card" + (own ? " card-own" : "") + (state.task === task.id ? " selected" : ""),
       "aria-pressed": state.task === task.id ? "true" : "false",
       onclick: () => {
         // Смена задачи сбрасывает зависимые данные старой ветки.
@@ -121,10 +139,11 @@ function step0(ctx) {
         [...cards.children].forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
         card.classList.add("selected");
         card.setAttribute("aria-pressed", "true");
-        ownWrap.style.display = task.id === "own" ? "" : "none";
+        ownWrap.style.display = own ? "" : "none";
         error.textContent = "";
       }
     },
+      own ? null : taskIconEl(task.id),
       el("div", { class: "card-title" }, task.title),
       el("div", { class: "card-desc" }, task.card)
     );
@@ -138,6 +157,7 @@ function step0(ctx) {
   );
 
   wrap.append(
+    el("div", { class: "section-label" }, t.sectionLabel),
     cards,
     ownWrap,
     fieldset(t.awarenessQuestion, awareness),

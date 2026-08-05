@@ -142,21 +142,26 @@ function resumeBanner() {
   return el("div", { class: "resume" }, text);
 }
 
+let hasRendered = false; // первый показ не забирает фокус на заголовок
 function render() {
   root.innerHTML = "";
   // Невалидный экран в сохранённой сессии — начинаем с начала, не падаем.
   if (!screens[screen]) { screen = flow[0]; state.currentStep = screen; }
   try {
     const view = el("div", { class: "screen", "data-screen": screen });
-    // Карта пути видна на входе (как превью пути) и на всех пяти шагах.
-    if (screen === "step0" || content.pathMap.some((n) => n.step === screen)) view.appendChild(pathMapEl());
+    // Карта пути видна на всех пяти шагах. На входном экране её не показываем:
+    // это чистый герой с выбором задачи, путь открывается с первого шага.
+    if (content.pathMap.some((n) => n.step === screen)) view.appendChild(pathMapEl());
     if (resuming) view.appendChild(resumeBanner());
     view.appendChild(screens[screen](ctx));
     root.appendChild(view);
     window.scrollTo(0, 0);
-    // После перехода фокус попадает на заголовок нового шага (для клавиатуры и скринридера).
+    // После перехода фокус попадает на заголовок нового шага (для клавиатуры и
+    // скринридера). На самом первом показе фокус не ставим, иначе на крупном
+    // заголовке входного экрана видно кольцо фокуса как лишнюю рамку.
     const heading = view.querySelector("h1");
-    if (heading) heading.focus({ preventScroll: true });
+    if (heading && hasRendered) heading.focus({ preventScroll: true });
+    hasRendered = true;
   } catch (e) {
     // Повреждённое состояние — предлагаем начать заново, а не показываем пустой экран.
     storage.track("network_error", { operation: "render", step: screen });
