@@ -509,7 +509,7 @@ export const system = {
 export const SCHEMA_VERSION = 2;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.6.8";
+export const GAME_VERSION = "0.6.9";
 
 export function createInitialState() {
   const now = Date.now();

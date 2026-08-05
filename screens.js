@@ -153,7 +153,8 @@ function step0(ctx) {
   const awareness = choiceRow(
     [{ id: "yes", label: t.awarenessYes }, { id: "no", label: t.awarenessNo }],
     state.awarenessBefore,
-    (id) => { state.awarenessBefore = id; ctx.update(); error.textContent = ""; ctx.storage.track("knows_before_answered", { value: id }); }
+    (id) => { state.awarenessBefore = id; ctx.update(); error.textContent = ""; ctx.storage.track("knows_before_answered", { value: id }); },
+    "toggle"
   );
 
   wrap.append(
@@ -829,7 +830,8 @@ function final(ctx) {
     (id) => {
       state.awarenessAfter = id; ctx.update();
       ctx.storage.track("knows_after_answered", { value: id });
-    }
+    },
+    "toggle"
   );
   wrap.appendChild(fieldset(f.awarenessRepeat, awareness));
 
