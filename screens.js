@@ -355,16 +355,20 @@ function step3(ctx) {
 
   // Собранная цепочка: выбранные на шаге 2 инструменты (или подсказка задачи),
   // показана до результата, чтобы читалась последовательность сборки.
-  const chainTools = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
-    .map((id) => content.toolById[id]).filter(Boolean);
+  // Пересобирается после обмена инструментов, поэтому вынесена в функцию.
   const chainRow = el("div", { class: "chain-row" });
-  chainTools.forEach((tl, i) => {
-    if (i) chainRow.appendChild(el("span", { class: "chain-arrow" }, "→"));
-    chainRow.appendChild(el("div", { class: "chain-node" },
-      el("span", { class: "chain-name" }, tl.name),
-      el("span", { class: "chain-role" }, tl.role)
-    ));
-  });
+  function renderChain() {
+    chainRow.innerHTML = "";
+    const chainTools = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
+      .map((id) => content.toolById[id]).filter(Boolean);
+    chainTools.forEach((tl, i) => {
+      if (i) chainRow.appendChild(el("span", { class: "chain-arrow" }, "→"));
+      chainRow.appendChild(el("div", { class: "chain-node" },
+        el("span", { class: "chain-name" }, tl.name),
+        el("span", { class: "chain-role" }, tl.role)
+      ));
+    });
+  }
 
   const stage = el("div", { class: "stage" });
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
@@ -372,8 +376,11 @@ function step3(ctx) {
 
   // Последствие учитывает задачу; общий текст остаётся запасным.
   const consequenceFor = (id) => task.check?.[id]?.consequence || content.step3Consequence[id];
+  // Какие способности не закрыты выбранной тройкой. Пусто — пилот собран целиком.
+  const gaps = () => content.pilotGaps(state.task, state.tools.selected);
 
-  function showResult() {
+  // Пилот собран целиком: результат на реальном случае и выбор «Достаточно/Доработать».
+  function showWorkingResult() {
     stage.innerHTML = "";
     stage.appendChild(el("div", { class: "field" },
       el("div", { class: "legend" }, t.resultLabel),
@@ -394,28 +401,90 @@ function step3(ctx) {
     if (state.step3Choice) consequence.textContent = consequenceFor(state.step3Choice);
   }
 
+  // Пилот собрался не весь: называем недостающие способности и даём поменять
+  // инструмент в том же бюджете, затем собрать заново. Провала нет.
+  function showGapResult(missing) {
+    if (state.step3Choice) { state.step3Choice = null; ctx.update(); }
+    foot.querySelector(".primary").disabled = true;
+    consequence.textContent = "";
+    stage.innerHTML = "";
+    const box = el("div", { class: "field gap" },
+      el("div", { class: "legend" }, t.gapResultLabel),
+      el("p", { class: "gap-lead" }, t.gapLead)
+    );
+    const ul = el("ul", { class: "gap-list" });
+    for (const a of missing) ul.appendChild(el("li", {}, a.miss));
+    box.append(ul, el("p", { class: "gap-hint" }, t.swapHint), toolSwap(),
+      el("button", { class: "primary build", onclick: () => { renderChain(); runBuild(); } }, t.rebuildButton));
+    stage.appendChild(box);
+    ctx.storage.track("pilot_gap", { missing: missing.map((a) => a.need), set: [...state.tools.selected] });
+  }
+
+  // Компактный обмен инструментов: тот же источник (state.tools.selected) и тот
+  // же бюджет в три, что на шаге 2. Рекомендованные помечены. Нового состояния нет.
+  function toolSwap() {
+    const reco = new Set((content.taskTools[state.task] || { reco: [] }).reco);
+    const max = content.ui.step2.maxTools;
+    const grid = el("div", { class: "tool-swap" });
+    const note = el("div", { class: "error", role: "alert" });
+    content.tools.forEach((tool) => {
+      const sel = state.tools.selected;
+      const on = () => sel.includes(tool.id);
+      const chip = el("button", {
+        type: "button",
+        class: "swap-chip" + (on() ? " selected" : "") + (reco.has(tool.id) ? " reco" : ""),
+        "aria-pressed": on() ? "true" : "false"
+      }, tool.name);
+      chip.addEventListener("click", () => {
+        const i = sel.indexOf(tool.id);
+        if (i >= 0) sel.splice(i, 1);
+        else if (sel.length >= max) { note.textContent = content.ui.step2.fourthAttempt; return; }
+        else sel.push(tool.id);
+        note.textContent = "";
+        chip.classList.toggle("selected", on());
+        chip.setAttribute("aria-pressed", on() ? "true" : "false");
+        ctx.update();
+      });
+      grid.appendChild(chip);
+    });
+    return el("div", { class: "swap-wrap" }, grid, note);
+  }
+
+  function resolveResult() {
+    const missing = gaps();
+    if (missing.length === 0) {
+      ctx.storage.track("pilot_covered", { set: [...state.tools.selected] });
+      showWorkingResult();
+    } else {
+      showGapResult(missing);
+    }
+  }
+
   // Короткая анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
   // При prefers-reduced-motion анимацию пропускаем и сразу показываем результат.
   function runBuild() {
     const nodes = [...chainRow.querySelectorAll(".chain-node")];
     const reduce = typeof window !== "undefined" && window.matchMedia
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { nodes.forEach((n) => n.classList.add("lit")); showResult(); return; }
+    if (reduce) { nodes.forEach((n) => n.classList.add("lit")); resolveResult(); return; }
     stage.innerHTML = "";
     stage.appendChild(el("div", { class: "building" }, el("span", {}, t.buildingText)));
     let i = 0;
     const lit = () => {
       if (i < nodes.length) { nodes[i].classList.add("lit"); i += 1; setTimeout(lit, 340); }
-      else setTimeout(showResult, 300);
+      else setTimeout(resolveResult, 300);
     };
     lit();
   }
 
-  if (state.step3Choice) {
-    // Возврат на шаг: цепочка уже собрана, результат показываем сразу.
+  renderChain();
+  if (state.step3Choice && gaps().length === 0) {
+    // Возврат на шаг: пилот собран, результат показываем сразу.
     chainRow.querySelectorAll(".chain-node").forEach((n) => n.classList.add("lit"));
-    showResult();
+    showWorkingResult();
   } else {
+    // Первый заход, либо тройку поменяли и она больше не покрывает задачу.
+    if (state.step3Choice) { state.step3Choice = null; ctx.update(); }
     stage.appendChild(el("button", { class: "primary build", onclick: runBuild }, t.buildButton));
   }
 
