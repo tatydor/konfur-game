@@ -26,7 +26,7 @@
       // Карта импортов: относительные модули отдаются с версией. Ключ и импорт
       // резолвятся в один абсолютный адрес, поэтому подхватываются и вложенные
       // импорты (screens.js → data.js и т.д.) — сам код менять не нужно.
-      var mods = ["app.js", "data.js", "screens.js", "storage.js", "dom.js"];
+      var mods = ["app.js", "data.js", "screens.js", "storage.js", "dom.js", "intro.js", "intro-assets.js"];
       var imports = {};
       mods.forEach(function (m) { imports["./" + m] = "./" + m + "?v=" + V; });
       var im = document.createElement("script");
