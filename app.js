@@ -6,6 +6,7 @@ import content, { flow, createInitialState, SCHEMA_VERSION, GAME_VERSION } from 
 import * as storage from "./storage.js";
 import { screens } from "./screens.js";
 import { el, tpl } from "./dom.js";
+import { shouldShowIntro, mountIntro } from "./intro.js";
 
 // Версия кеша из index.html должна совпадать с GAME_VERSION. Если забыли
 // синхронизировать при релизе — предупреждаем в консоль, игру не ломаем.
@@ -187,4 +188,16 @@ updateOnline();
 // Автосохранение при уходе со страницы — страховка от обрыва.
 window.addEventListener("beforeunload", persist);
 
-render();
+// На свежем старте показываем заставку-конвейер, а первый экран отдаём по кнопке
+// «Начать игру». При возврате с сохранённым прогрессом заставку пропускаем.
+if (shouldShowIntro({ screen, state, resuming, firstScreen: flow[0] })) {
+  storage.track("intro_shown", {});
+  mountIntro(root, {
+    content,
+    reducedMotion: typeof window !== "undefined" && window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    onStart: () => { storage.track("intro_started", {}); render(); }
+  });
+} else {
+  render();
+}

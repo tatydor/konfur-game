@@ -313,6 +313,14 @@ export const step5Consequence = {
 
 // Копирайт экранов: заголовки, подводки, кнопки, микротексты по шагам.
 export const ui = {
+  // Входная заставка-конвейер перед первым экраном. Только три подписи и кнопка,
+  // сама анимация — в intro.js, ассеты — в intro-assets.js.
+  intro: {
+    kicker: "Пилот за пять шагов",
+    title: "Собираем решение на конвейере",
+    caption: "Гипотезы, технологии, интерфейсы и метрики идут потоком",
+    button: "Начать игру"
+  },
   step0: {
     badge: "ИИ-платформа",
     title: "Собери ИИ-фичу под свою задачу",
@@ -509,7 +517,7 @@ export const system = {
 export const SCHEMA_VERSION = 2;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.6.10";
+export const GAME_VERSION = "0.6.11";
 
 export function createInitialState() {
   const now = Date.now();
