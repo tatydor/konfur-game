@@ -17,10 +17,23 @@ if (typeof window !== "undefined" && window.__BUILD_V && window.__BUILD_V !== GA
 const root = document.getElementById("app");
 const stepNoMap = { step1: 1, step2: 2, step3: 3, step4: 4, step5: 5 };
 
-// Восстановление: если есть сохранённый прогресс — продолжаем оттуда.
-// Несовместимую по версии схемы сессию не восстанавливаем, начинаем заново.
+// Ручная перезагрузка страницы (Cmd+R или Cmd+Shift+R — браузер их не различает)
+// начинает игру заново с заставки: так ожидаемо и на демо, и в разработке.
+// Восстановление прогресса остаётся для возврата по ссылке или после закрытия
+// вкладки (тип "navigate") и для кнопок назад/вперёд — там перезагрузки нет.
+function isPageReload() {
+  try {
+    const nav = performance.getEntriesByType?.("navigation")?.[0];
+    if (nav && nav.type) return nav.type === "reload";
+    return performance.navigation?.type === 1; // устаревший API как запас
+  } catch { return false; }
+}
+
+// Восстановление: если есть сохранённый прогресс и это не перезагрузка —
+// продолжаем оттуда. Несовместимую по версии схемы сессию не восстанавливаем.
 const saved = storage.loadProgress();
-const validSaved = saved && saved.state && saved.state.schemaVersion === SCHEMA_VERSION ? saved : null;
+const reloaded = isPageReload();
+const validSaved = !reloaded && saved && saved.state && saved.state.schemaVersion === SCHEMA_VERSION ? saved : null;
 if (saved && !validSaved) storage.clearProgress();
 let state = validSaved?.state ?? createInitialState();
 let screen = validSaved?.screen ?? flow[0];
