@@ -502,9 +502,11 @@ button.restart { display: block; margin: 24px auto 0; }
   .intro-overlay { justify-content: flex-start; padding-top: 12px; }
 }
 
-/* «Меньше движения»: поток не запускаем (intro.js), едущие грузы не анимируем. */
+/* Заставка крутится всегда: экран живёт ~10 секунд, экономить движение незачем.
+   Глобальный блок reduced-motion выше обнуляет длительность у всех анимаций —
+   здесь более специфичным правилом возвращаем её едущим грузам. */
 @media (prefers-reduced-motion: reduce) {
-  .intro-cargo { animation: none !important; }
+  .intro-cargo { animation-duration: var(--ride-time, 5.8s) !important; animation-iteration-count: 1 !important; }
 }
 
 /* ── Числовая гипотеза и свободная ветка (v0.7.0) ──────────────────────── */

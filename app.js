@@ -214,8 +214,11 @@ if (shouldShowIntro({ screen, state, resuming, firstScreen: flow[0] })) {
   storage.track("intro_shown", {});
   mountIntro(root, {
     content,
-    reducedMotion: typeof window !== "undefined" && window.matchMedia
-      && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    // Заставку крутим всегда: короткий (~10 с) декоративный экран, поток грузов не
+    // «трясёт» интерфейс, поэтому не гасим его даже в энергосбережении iOS (там
+    // prefers-reduced-motion включается автоматически). Остальные анимации игры
+    // настройку «меньше движения» по-прежнему уважают.
+    reducedMotion: false,
     onStart: () => { storage.track("intro_started", {}); render(); }
   });
 } else {

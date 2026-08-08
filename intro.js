@@ -112,8 +112,9 @@ export function mountIntro(root, { content, reducedMotion = false, onStart }) {
 
   root.replaceChildren(overlay);
 
-  // При системной настройке «меньше движения» поток не запускаем — показываем
-  // статичную сцену и ту же кнопку.
+  // Поток грузов запускаем, если вызывающий не попросил «меньше движения».
+  // Сейчас app.js всегда передаёт reducedMotion: false, поэтому заставка
+  // анимируется даже в энергосбережении iOS (короткий декоративный экран).
   if (!reducedMotion) {
     running = true;
     spawnIcon();
