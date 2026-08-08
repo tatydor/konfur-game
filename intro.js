@@ -54,9 +54,9 @@ export function mountIntro(root, { content, reducedMotion = false, onStart }) {
     onclick: () => finish()
   }, t.button);
 
+  // Подписи и сцена центрируются в верхней части, кнопка прижата к низу экрана.
   const overlay = el("div", { class: "intro-overlay" },
-    copy,
-    scene,
+    el("div", { class: "intro-main" }, copy, scene),
     el("div", { class: "intro-start-wrap" }, startBtn)
   );
 

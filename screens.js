@@ -20,6 +20,47 @@ function trapTab(e, container) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
+// Универсальное модальное окно с одним текстовым полем: заголовок, подводка,
+// необязательное предупреждение, счётчик остатка символов, «Отмена»/«Сохранить».
+// onSave получает обрезанный текст; окно закрывается после сохранения. Escape и
+// клик вне панели закрывают, фокус замыкается внутри и возвращается на источник.
+function openTextModal({ title, intro, warn, value = "", placeholder = "", maxlength = HYP_MAX, counterTemplate, cancelLabel, saveLabel, returnFocusTo, onSave }) {
+  const overlay = el("div", { class: "modal-overlay" });
+  const panel = el("div", { class: "modal-panel", role: "dialog", "aria-modal": "true", "aria-label": title });
+  const ta = el("textarea", { class: "hyp-free modal-field", maxlength, placeholder, "aria-label": title });
+  ta.value = value;
+  const counter = el("div", { class: "charcount" });
+  const updateCounter = () => {
+    const left = maxlength - ta.value.length;
+    counter.textContent = left <= 40 && counterTemplate ? tpl(counterTemplate, { n: left }) : "";
+  };
+  ta.addEventListener("input", updateCounter);
+
+  const close = () => { document.removeEventListener("keydown", onKey); overlay.remove(); if (returnFocusTo) returnFocusTo.focus(); };
+  const save = () => { onSave(ta.value.trim()); close(); };
+  function onKey(e) {
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Tab") trapTab(e, panel);
+  }
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+
+  panel.append(
+    el("h2", { class: "modal-title" }, title),
+    intro ? el("p", { class: "modal-intro" }, intro) : null,
+    ta, counter,
+    warn ? el("p", { class: "warn" }, warn) : null,
+    el("div", { class: "modal-actions" },
+      el("button", { class: "ghost", type: "button", onclick: close }, cancelLabel),
+      el("button", { class: "primary", type: "button", onclick: save }, saveLabel)
+    )
+  );
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  updateCounter();
+  ta.focus(); ta.select();
+}
+
 // ── Общие детали ──────────────────────────────────────────────
 // Шапка: плашка «Задача: …» (шаги 1 и 5) и бейдж места в одну строку, затем
 // заголовок и подводка. Без плашки бейдж рендерится как раньше — одиночный .loc.
@@ -130,43 +171,64 @@ function step0(ctx) {
 
   const error = el("div", { class: "error", role: "alert" });
 
-  // Поле своей задачи с честным объяснением, без обещания адаптации.
-  const ownWrap = el("div", { class: "own-wrap", style: state.task === "own" ? "" : "display:none" });
-  const ownField = el("textarea", { class: "own-field", placeholder: t.ownFieldPlaceholder, "aria-label": t.ownFieldLabel });
-  ownField.value = state.ownTaskText || "";
-  ownField.addEventListener("input", () => { state.ownTaskText = ownField.value; ctx.update(); });
-  ownWrap.append(el("p", { class: "own-explain" }, t.ownExplain), ownField, el("p", { class: "warn" }, t.privacyWarning));
-
-  // Четыре задачи сеткой два на два с иконками, своя задача — пунктирной
-  // карточкой во всю ширину под ними.
+  // Четыре задачи сеткой два на два, своя — пунктирной карточкой во всю ширину.
+  // Своя задача описывается в модальном окне; после сохранения карточка
+  // показывает заголовок «Моя задача» и введённый текст, с рамкой выбранной.
   const cards = el("div", { class: "cards" });
-  for (const task of content.tasks) {
-    const own = task.id === "own";
-    const card = el("button", {
-      class: "card" + (own ? " card-own" : "") + (state.task === task.id ? " selected" : ""),
-      "aria-pressed": state.task === task.id ? "true" : "false",
-      onclick: () => {
-        // Смена задачи сбрасывает зависимые данные старой ветки.
-        if (state.task && state.task !== task.id) {
-          ctx.storage.track("task_changed", { from: state.task, to: task.id });
+
+  function selectTask(taskId) {
+    if (state.task && state.task !== taskId) {
+      ctx.storage.track("task_changed", { from: state.task, to: taskId });
+      resetDependentOnTask(state);
+    }
+    state.task = taskId;
+    ctx.storage.track("task_selected", { taskId });
+    ctx.update();
+    error.textContent = "";
+    renderCards();
+  }
+
+  function openOwnModal(returnFocusTo) {
+    openTextModal({
+      title: t.ownModalTitle, intro: t.ownExplain, warn: t.privacyWarning,
+      value: state.ownTaskText || "", placeholder: t.ownFieldPlaceholder, maxlength: 160,
+      counterTemplate: content.system.charsLeftTemplate,
+      cancelLabel: t.modalCancel, saveLabel: t.modalSave, returnFocusTo,
+      onSave: (text) => {
+        if (!text) return;   // пустую свою задачу не выбираем
+        if (state.task && state.task !== "own") {
+          ctx.storage.track("task_changed", { from: state.task, to: "own" });
           resetDependentOnTask(state);
         }
-        state.task = task.id;
-        ctx.storage.track("task_selected", { taskId: task.id });
+        state.ownTaskText = text;
+        state.task = "own";
+        ctx.storage.track("task_selected", { taskId: "own" });
         ctx.update();
-        [...cards.children].forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
-        card.classList.add("selected");
-        card.setAttribute("aria-pressed", "true");
-        ownWrap.style.display = own ? "" : "none";
         error.textContent = "";
+        renderCards();
       }
-    },
-      own ? null : taskIconEl(task.id),
-      el("div", { class: "card-title" }, task.title),
-      el("div", { class: "card-desc" }, task.card)
-    );
-    cards.appendChild(card);
+    });
   }
+
+  function renderCards() {
+    cards.replaceChildren();
+    for (const task of content.tasks) {
+      const own = task.id === "own";
+      const filled = own && !!state.ownTaskText.trim();
+      const selected = state.task === task.id;
+      const card = el("button", {
+        class: "card" + (own ? " card-own" : "") + (selected ? " selected" : ""),
+        "aria-pressed": selected ? "true" : "false",
+        onclick: () => (own ? openOwnModal(card) : selectTask(task.id))
+      },
+        own ? null : taskIconEl(task.id),
+        el("div", { class: "card-title" }, own && filled ? t.ownFilledTitle : task.title),
+        el("div", { class: "card-desc" }, own && filled ? state.ownTaskText.trim() : task.card)
+      );
+      cards.appendChild(card);
+    }
+  }
+  renderCards();
 
   const awareness = choiceRow(
     [{ id: "yes", label: t.awarenessYes }, { id: "no", label: t.awarenessNo }],
@@ -178,7 +240,6 @@ function step0(ctx) {
   wrap.append(
     el("div", { class: "section-label" }, t.sectionLabel),
     cards,
-    ownWrap,
     fieldset(t.awarenessQuestion, awareness),
     error,
     nav(ctx, {
@@ -306,45 +367,17 @@ function step1(ctx) {
   // в свободную ветку только если текст изменился.
   function openModal(pencilEl) {
     const seed = buildHypothesis(state.task, h.resultChoice, h.goalChoice, h.sampleSize, state.ownTaskText.trim());
-    const overlay = el("div", { class: "modal-overlay" });
-    const panel = el("div", { class: "modal-panel", role: "dialog", "aria-modal": "true", "aria-label": t.modalTitle });
-    const ta = el("textarea", { class: "hyp-free modal-field", maxlength: HYP_MAX, "aria-label": t.modalTitle });
-    ta.value = seed;
-    const counter = el("div", { class: "charcount" });
-    const updateCounter = () => {
-      const left = HYP_MAX - ta.value.length;
-      counter.textContent = left <= 40 ? tpl(content.system.charsLeftTemplate, { n: left }) : "";
-    };
-    ta.addEventListener("input", updateCounter);
-
-    const close = () => { document.removeEventListener("keydown", onKey); overlay.remove(); if (pencilEl) pencilEl.focus(); };
-    const save = () => {
-      const text = ta.value.trim();
-      if (!text || text === seed.trim()) { close(); return; } // не отличается — остаёмся в числовом режиме
-      h.customText = text; h.finalText = text; h.freeform = true;
-      ctx.update(); ctx.storage.track("hypothesis_custom_saved", {});
-      close(); applyMode();
-    };
-    function onKey(e) {
-      if (e.key === "Escape") { e.preventDefault(); close(); }
-      else if (e.key === "Tab") trapTab(e, panel);
-    }
-    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
-    document.addEventListener("keydown", onKey);
-
-    panel.append(
-      el("h2", { class: "modal-title" }, t.modalTitle),
-      el("p", { class: "modal-intro" }, t.modalIntro),
-      ta, counter,
-      el("div", { class: "modal-actions" },
-        el("button", { class: "ghost", type: "button", onclick: close }, t.modalCancel),
-        el("button", { class: "primary", type: "button", onclick: save }, t.modalSave)
-      )
-    );
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-    updateCounter();
-    ta.focus(); ta.select();
+    openTextModal({
+      title: t.modalTitle, intro: t.modalIntro, value: seed,
+      counterTemplate: content.system.charsLeftTemplate,
+      cancelLabel: t.modalCancel, saveLabel: t.modalSave, returnFocusTo: pencilEl,
+      onSave: (text) => {
+        if (!text || text === seed.trim()) return; // не отличается — остаёмся в числовом режиме
+        h.customText = text; h.finalText = text; h.freeform = true;
+        ctx.update(); ctx.storage.track("hypothesis_custom_saved", {});
+        applyMode();
+      }
+    });
   }
 
   function onReset() {

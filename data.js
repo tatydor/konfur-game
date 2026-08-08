@@ -444,6 +444,10 @@ export const ui = {
     ownFieldPlaceholder: "например, свести данные из трёх систем в один отчёт",
     ownExplain: "Запишем её сейчас, общий маршрут покажем в игре, а подробный разбор продолжим со стендистом.",
     privacyWarning: "Не вписывай сюда данные клиентов и персональные данные. Тексты мы читаем.",
+    ownModalTitle: "Своя задача",
+    ownFilledTitle: "Моя задача",
+    modalCancel: "Отмена",
+    modalSave: "Сохранить",
     awarenessQuestion: "Знаешь, с чего начать такой пилот?",
     awarenessYes: "Да",
     awarenessNo: "Нет",
@@ -663,7 +667,7 @@ export const system = {
 export const SCHEMA_VERSION = 3;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.7.2";
+export const GAME_VERSION = "0.7.3";
 
 export function createInitialState() {
   const now = Date.now();
