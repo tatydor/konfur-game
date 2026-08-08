@@ -438,7 +438,7 @@ export const ui = {
   step0: {
     badge: "ИИ-платформа",
     title: "Собери ИИ-фичу под свою задачу",
-    intro: "Выбери рабочую задачу, соберём для неё первый ИИ-пилот. Пять шагов, три минуты, ноль созвонов.",
+    intro: "Собери пилот из инструментов ИИ-платформы и посмотри, что каждый из них даёт.",
     sectionLabel: "Выбери задачу",
     ownFieldLabel: "Что за задача",
     ownFieldPlaceholder: "например, свести данные из трёх систем в один отчёт",
@@ -686,7 +686,7 @@ export const system = {
 export const SCHEMA_VERSION = 3;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.8.0";
+export const GAME_VERSION = "0.8.1";
 
 export function createInitialState() {
   const now = Date.now();
