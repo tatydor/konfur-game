@@ -571,11 +571,12 @@ button.restart { display: block; margin: 24px auto 0; }
 [data-screen="step1"] h1 { font-size: 1.15rem; margin-bottom: 6px; }
 [data-screen="step1"] .intro { font-size: 0.86rem; }
 
-/* Блок выбора цели: название и мелкой строкой целевое значение. */
-.goal-choice { flex-direction: column; align-items: flex-start; gap: 0; padding-top: 6px; padding-bottom: 6px; }
-.goal-choice .goal-name { font-weight: 600; }
-.goal-choice .goal-sub { font-size: 0.78rem; opacity: 0.8; }
-.goal-choice.selected .goal-sub { opacity: 0.9; }
+/* Приглашение приносить гипотезы в канал — отдельной строкой под выбором. */
+.channel-invite { text-align: center; color: var(--muted); font-size: 0.86rem; margin: 18px 0 2px; }
+
+/* Кнопка перехода на шаге 1 — во всю ширину, как «Запустить пилот» на входе. */
+[data-screen="step1"] .nav { margin-top: 20px; }
+[data-screen="step1"] .nav .primary { margin: 0; width: 100%; padding: 16px 22px; font-size: 1.02rem; }
 
 /* Модальное окно правки гипотезы. */
 .modal-overlay {

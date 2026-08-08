@@ -58,17 +58,17 @@ function nav(ctx, { nextLabel, disabled, onNext } = {}) {
 let fieldSeq = 0;
 // Текстовое поле связываем с настоящим label, группу кнопок — role="group"
 // с aria-labelledby, чтобы скринридер называл и подпись, и элемент.
-function fieldset(legend, control) {
+function fieldset(legend, control, legendClass = "legend") {
   const tag = control.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") {
     const id = "fld" + (++fieldSeq);
     control.id = id;
-    return el("div", { class: "field" }, el("label", { class: "legend", for: id }, legend), control);
+    return el("div", { class: "field" }, el("label", { class: legendClass, for: id }, legend), control);
   }
   const id = "grp" + (++fieldSeq);
   control.setAttribute("role", "group");
   control.setAttribute("aria-labelledby", id);
-  return el("div", { class: "field" }, el("div", { class: "legend", id }, legend), control);
+  return el("div", { class: "field" }, el("div", { class: legendClass, id }, legend), control);
 }
 
 function choiceRow(options, selected, onPick, extraClass = "") {
@@ -232,9 +232,11 @@ function step1(ctx) {
   const freeField = el("textarea", { class: "hyp-free", maxlength: HYP_MAX, placeholder: t.freePlaceholder, "aria-label": "Текст гипотезы" });
   freeField.value = h.customText || "";
   freeField.addEventListener("input", () => { h.customText = freeField.value; h.finalText = freeField.value; ctx.update(); error.textContent = ""; });
-  freeHost.append(el("div", { class: "legend" }, t.cardLabel), freeField);
+  freeHost.append(el("div", { class: "section-label" }, t.cardLabel), freeField);
 
   const resetLink = el("button", { class: "linklike", onclick: onReset }, t.resetLink);
+  // Приглашение приносить гипотезы в канал — отдельной строкой, в обеих ветках.
+  const channelInvite = el("p", { class: "channel-invite" }, t.channelLine);
 
   function maybeTrackBuilt() {
     ctx.storage.track("hypothesis_built", { result: h.resultChoice, goal: h.goalChoice, sample: h.sampleSize });
@@ -262,7 +264,7 @@ function step1(ctx) {
   function paintNumeric(changedSlot) {
     numericHost.innerHTML = "";
     if (!tm) return;
-    numericHost.append(el("div", { class: "legend" }, t.cardLabel), cardNode(changedSlot));
+    numericHost.append(el("div", { class: "section-label" }, t.cardLabel), cardNode(changedSlot));
     // Результат: кнопки в порядке ключей taskMetrics. Смена сбрасывает цель на первую.
     const resultIds = content.taskResultIds(state.task);
     numericHost.appendChild(fieldset(t.resultLegend,
@@ -270,19 +272,23 @@ function step1(ctx) {
         h.resultChoice = id;
         h.goalChoice = tm[id].goals[0].id;
         ctx.update(); maybeTrackBuilt(); paintNumeric("goal");
-      })
+      }, "toggle"), "section-label"
     ));
-    // Цель: под названием мелким текстом целевое значение (targetShort).
+    // Цель: кратность ×N, направление и целевое значение в скобках, одной строкой.
+    const goalOpts = tm[h.resultChoice].goals.map((g) => ({
+      id: g.id,
+      label: `${g.id === "x3" ? "×3" : "×2"} ${g.label.replace(/^\S+\s+/, "")} (${g.targetShort})`
+    }));
     numericHost.appendChild(fieldset(tpl(t.goalLegendTemplate, { now: tm[h.resultChoice].now }),
-      goalRow(tm[h.resultChoice].goals, h.goalChoice, (id) => {
+      choiceRow(goalOpts, h.goalChoice, (id) => {
         h.goalChoice = id; ctx.update(); maybeTrackBuilt(); paintNumeric("goal");
-      })
+      }, "toggle"), "section-label"
     ));
     // Выборка: подпись кнопки — число и единица.
     numericHost.appendChild(fieldset(t.sampleLegend,
       choiceRow(tm.samples.map((n) => ({ id: n, label: `${n} ${tm.sampleUnit}` })), h.sampleSize, (id) => {
         h.sampleSize = id; ctx.update(); maybeTrackBuilt(); paintNumeric("check");
-      })
+      }, "toggle"), "section-label"
     ));
   }
 
@@ -353,26 +359,9 @@ function step1(ctx) {
     ctx.next();
   }
 
-  wrap.append(numericHost, freeHost, resetLink, error, nav(ctx, { nextLabel: t.button, onNext }));
+  wrap.append(numericHost, freeHost, resetLink, channelInvite, error, nav(ctx, { nextLabel: t.button, onNext }));
   applyMode();
   return wrap;
-}
-
-// Блок выбора цели: название плюс мелкой строкой целевое значение.
-function goalRow(goals, selected, onPick) {
-  const row = el("div", { class: "choices" });
-  for (const g of goals) {
-    row.appendChild(el("button", {
-      type: "button",
-      class: "choice goal-choice" + (selected === g.id ? " selected" : ""),
-      "aria-pressed": selected === g.id ? "true" : "false",
-      onclick: () => onPick(g.id)
-    },
-      el("span", { class: "goal-name" }, g.label),
-      el("span", { class: "goal-sub" }, g.targetShort)
-    ));
-  }
-  return row;
 }
 
 // ── Шаг 2. Инструменты вокруг бюджета: выбрать до трёх ─────────

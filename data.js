@@ -458,6 +458,7 @@ export const ui = {
     introFree: "Опиши гипотезу своими словами, разберём на стенде.",
     introCustom: "Разберём твою формулировку на стенде.",
     cardLabel: "Гипотеза",
+    channelLine: "Приносите гипотезы в ии-в-бизнесе",
     resultLegend: "Ожидаемый результат",
     goalLegendTemplate: "Цель, сейчас {now}",
     sampleLegend: "Проверим на",
@@ -662,7 +663,7 @@ export const system = {
 export const SCHEMA_VERSION = 3;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.7.0";
+export const GAME_VERSION = "0.7.1";
 
 export function createInitialState() {
   const now = Date.now();
