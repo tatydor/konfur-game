@@ -422,27 +422,56 @@ function step1(ctx) {
 function step2(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step2;
+  const isOwn = state.task === "own";
   const tt = content.taskTools[state.task] || { reco: [], alt: [] };
-  const recoSet = new Set(tt.reco);
   const mainIds = [...tt.reco, ...tt.alt];                    // основной экран: рекомендации + альтернативы
   const restIds = content.tools.map((x) => x.id).filter((id) => !mainIds.includes(id));
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  const counter = el("div", { class: "counter", "aria-live": "polite" });
+  // Доработка: пилот уже тестировали, часть бюджета потрачена безвозвратно.
+  if (state.refine) wrap.appendChild(el("div", { class: "refine-banner" }, t.refineBanner));
+
+  // Бюджет пилота: всего, потрачено, осталось. Обновляется при каждом выборе.
+  const budgetBar = el("div", { class: "budget" });
+  const budgetLeftEl = el("span", { class: "budget-left" });
+  const budgetSpentEl = el("span", { class: "budget-spent" });
+  budgetBar.append(
+    el("div", { class: "budget-row" },
+      el("span", { class: "budget-title" }, t.budgetTitle),
+      budgetLeftEl
+    ),
+    el("div", { class: "budget-note" }, content.budgetNote),
+    budgetSpentEl
+  );
+  wrap.appendChild(budgetBar);
+
   const msg = el("div", { class: "error", role: "alert" });
   const chain = el("p", { class: "chain" });
   const list = el("div", { class: "tool-list" });
-  const foot = nav(ctx, { nextLabel: t.button, disabled: state.tools.selected.length === 0 });
+  const foot = nav(ctx, { nextLabel: state.refine ? t.refineButton : t.button, disabled: state.tools.selected.length === 0 });
+
+  const canAfford = (id) => state.tools.purchased.includes(id) || content.toolCost(id) <= content.budgetLeft(state);
 
   function refresh() {
     const sel = state.tools.selected;
-    counter.textContent = tpl(t.counterTemplate, { n: sel.length, max: t.maxTools });
+    const left = content.budgetLeft(state);
+    budgetLeftEl.textContent = tpl(t.budgetLeftTemplate, { left, total: content.pilotBudget });
+    budgetSpentEl.textContent = tpl(t.budgetSpentTemplate, { spent: content.budgetSpent(state) });
+    budgetLeftEl.classList.toggle("low", left <= 15);
     foot.querySelector(".primary").disabled = sel.length === 0;
-    // При достижении лимита невыбранные карточки приглушаются.
+    // Недоступные по остатку карточки: выключаем и подписываем, чего не хватает.
     wrap.querySelectorAll(".tool").forEach((c) => {
       const id = c.getAttribute("data-id");
-      c.classList.toggle("dimmed", sel.length >= t.maxTools && !sel.includes(id));
+      const on = sel.includes(id);
+      const afford = state.tools.purchased.includes(id) || content.toolCost(id) <= left;
+      const blocked = !on && !afford;
+      c.classList.toggle("blocked", blocked);
+      c.disabled = blocked;
+      const need = c.querySelector(".tool-need");
+      if (need) need.textContent = blocked ? tpl(t.cantAffordTemplate, { n: content.toolCost(id) - left }) : "";
+      const free = c.querySelector(".tool-free");
+      if (free) free.style.display = (state.refine && state.tools.purchased.includes(id) && !on) ? "" : "none";
     });
     // Строка сборки: как выбранные инструменты работают вместе.
     chain.textContent = sel.length
@@ -451,32 +480,38 @@ function step2(ctx) {
   }
 
   function toolCard(tool) {
-    const isReco = recoSet.has(tool.id);
+    const on = state.tools.selected.includes(tool.id);
     const card = el("button", {
-      class: "tool selectable" + (state.tools.selected.includes(tool.id) ? " selected" : "") + (isReco ? " reco" : ""),
+      type: "button",
+      class: "tool selectable" + (on ? " selected" : ""),
       "data-id": tool.id,
-      "aria-pressed": state.tools.selected.includes(tool.id) ? "true" : "false"
+      "aria-pressed": on ? "true" : "false"
     },
       el("div", { class: "tool-head" },
-        el("span", { class: "tool-name" }, tool.name)
+        el("span", { class: "tool-name" }, tool.name),
+        el("span", { class: "tool-cost" }, String(tool.cost))
       ),
       el("div", { class: "tool-explain" }, tool.explain),
-      isReco ? el("span", { class: "reco-tag" }, "советуем под задачу") : null
+      el("span", { class: "tool-need" }),
+      el("span", { class: "tool-free", style: "display:none" }, "уже куплен, включается бесплатно")
     );
     card.addEventListener("click", () => {
       const sel = state.tools.selected;
       const i = sel.indexOf(tool.id);
       let action;
       if (i >= 0) {
-        sel.splice(i, 1); card.classList.remove("selected"); card.setAttribute("aria-pressed", "false"); msg.textContent = ""; action = "removed";
-      } else if (sel.length >= t.maxTools) {
-        msg.textContent = t.fourthAttempt;
-        ctx.storage.track("tool_budget_exceeded", { tool: tool.id, set: [...sel] });
+        sel.splice(i, 1); action = "removed";
+        ctx.storage.track("tool_removed", { tool: tool.id, count: sel.length });
+      } else if (!canAfford(tool.id)) {
+        msg.textContent = tpl(t.cantAffordTemplate, { n: content.toolCost(tool.id) - content.budgetLeft(state) });
+        ctx.storage.track("budget_exhausted", { tool: tool.id, set: [...sel] });
         return;
       } else {
-        sel.push(tool.id); card.classList.add("selected"); card.setAttribute("aria-pressed", "true"); msg.textContent = ""; action = "added";
+        sel.push(tool.id); action = "added"; msg.textContent = "";
+        ctx.storage.track("tool_selected", { tool: tool.id, count: sel.length });
       }
-      ctx.storage.track("tool_toggled", { tool: tool.id, action, count: sel.length });
+      card.classList.toggle("selected", sel.includes(tool.id));
+      card.setAttribute("aria-pressed", sel.includes(tool.id) ? "true" : "false");
       ctx.update(); refresh();
     });
     return card;
@@ -484,7 +519,8 @@ function step2(ctx) {
 
   for (const id of mainIds) list.appendChild(toolCard(content.toolById[id]));
 
-  // Остальные инструменты — под раскрытие, не удлиняют основной путь.
+  // Остальные инструменты — под раскрытие, не удлиняют основной путь. Рядом —
+  // явный индикатор полного набора, чтобы игрок хотя бы раз увидел все десять.
   const moreWrap = el("div", { class: "more-tools", style: "display:none" });
   for (const id of restIds) moreWrap.appendChild(toolCard(content.toolById[id]));
   const moreToggle = el("button", {
@@ -492,10 +528,30 @@ function step2(ctx) {
     onclick: () => {
       const open = moreWrap.style.display === "";
       moreWrap.style.display = open ? "none" : "";
-      moreToggle.textContent = open ? t.allToolsToggle : "Свернуть";
+      moreToggle.textContent = open ? `${t.allToolsToggle} · ${t.allCountLabel}` : "Свернуть";
       refresh();
     }
-  }, t.allToolsToggle);
+  }, `${t.allToolsToggle} · ${t.allCountLabel}`);
+
+  // «Подсказать»: мягко подсвечиваем ключевые инструменты (только готовые кейсы).
+  // Своя задача рекомендаций не получает — игра её не знает достаточно.
+  const hintNote = el("p", { class: "hint-note", style: "display:none" });
+  const hintBtn = el("button", {
+    class: "ghost small hint-btn",
+    type: "button",
+    onclick: () => {
+      ctx.storage.track("hint_requested", { task: state.task });
+      hintNote.style.display = "";
+      if (isOwn) { hintNote.textContent = t.hintOwnText; return; }
+      hintNote.textContent = t.hintText;
+      const sc = content.taskScenarios[state.task];
+      if (!sc) return;
+      wrap.querySelectorAll(".tool").forEach((c) => {
+        const rel = sc.toolEffects[c.getAttribute("data-id")]?.relevance;
+        c.classList.toggle("hinted", rel === "core");
+      });
+    }
+  }, t.hintButton);
 
   // Нехватка — необязательная свёрнутая область, не в основном маршруте.
   const gapsWrap = el("div", { class: "gaps-wrap", style: "display:none" });
@@ -517,8 +573,14 @@ function step2(ctx) {
     onclick: () => { gapsWrap.style.display = gapsWrap.style.display === "" ? "none" : ""; }
   }, t.gapsTitle);
 
+  // Пустую цепочку дальше не пускаем — проверять нечего.
+  foot.querySelector(".primary").addEventListener("click", (e) => {
+    if (state.tools.selected.length === 0) { e.stopImmediatePropagation(); msg.textContent = t.emptyChainError; }
+  }, true);
+
   wrap.append(
-    counter, list, moreToggle, moreWrap,
+    list, moreToggle, moreWrap,
+    el("div", { class: "tool-actions" }, hintBtn), hintNote,
     chain, msg,
     gapsToggle, gapsWrap,
     foot
@@ -532,17 +594,15 @@ function step3(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step3;
   const task = content.taskById[state.task];
+  const freeform = state.hypothesis.freeform;   // своя задача и любой свободный ввод — без симуляции
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  // Собранная цепочка: выбранные на шаге 2 инструменты (или подсказка задачи),
-  // показана до результата, чтобы читалась последовательность сборки.
-  // Пересобирается после обмена инструментов, поэтому вынесена в функцию.
+  // Собранная цепочка из активных инструментов, в порядке выбора.
   const chainRow = el("div", { class: "chain-row" });
   function renderChain() {
     chainRow.innerHTML = "";
-    const chainTools = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
-      .map((id) => content.toolById[id]).filter(Boolean);
+    const chainTools = state.tools.selected.map((id) => content.toolById[id]).filter(Boolean);
     chainTools.forEach((tl, i) => {
       if (i) chainRow.appendChild(el("span", { class: "chain-arrow" }, "→"));
       chainRow.appendChild(el("div", { class: "chain-node" },
@@ -554,119 +614,100 @@ function step3(ctx) {
 
   const stage = el("div", { class: "stage" });
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
-  const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step3Choice });
+  const foot = nav(ctx, { nextLabel: t.button, disabled: !freeform && state.step3Choice !== "enough" });
 
-  // Последствие учитывает задачу; общий текст остаётся запасным.
   const consequenceFor = (id) => task.check?.[id]?.consequence || content.step3Consequence[id];
-  // Какие способности не закрыты выбранной тройкой. Пусто — пилот собран целиком.
-  const gaps = () => content.pilotGaps(state.task, state.tools.selected);
 
-  // Пилот собран целиком: результат на реальном случае и выбор «Достаточно/Доработать».
-  function showWorkingResult() {
+  // Своя задача: результата в цифрах нет, показываем универсальные роли компонентов
+  // и честную формулировку про следующий шаг. Ни бэндов, ни выдуманного эффекта.
+  function showCustomResult() {
     stage.innerHTML = "";
     stage.appendChild(el("div", { class: "field" },
       el("div", { class: "legend" }, t.resultLabel),
-      el("div", { class: "callout" }, task.example)
+      el("div", { class: "callout" }, t.customResult)
     ));
-    const choice = choiceRow(
-      [{ id: "enough", label: t.enoughLabel }, { id: "refine", label: t.refineLabel }],
-      state.step3Choice,
-      (id) => {
-        state.step3Choice = id;
-        ctx.update();
-        consequence.textContent = consequenceFor(id);
-        foot.querySelector(".primary").disabled = false;
-        ctx.storage.track("test_decision", { decision: id });
-      }
-    );
-    stage.appendChild(fieldset(t.question, choice));
-    if (state.step3Choice) consequence.textContent = consequenceFor(state.step3Choice);
+    foot.querySelector(".primary").disabled = false;
   }
 
-  // Пилот собрался не весь: называем недостающие способности и даём поменять
-  // инструмент в том же бюджете, затем собрать заново. Провала нет.
-  function showGapResult(missing) {
-    if (state.step3Choice) { state.step3Choice = null; ctx.update(); }
-    foot.querySelector(".primary").disabled = true;
-    consequence.textContent = "";
+  // Готовый кейс: результат зависит от цепочки. Строим вклад каждого инструмента,
+  // называем непокрытые ключевые способности, показываем итог по бэнду.
+  function showResult() {
+    const active = state.tools.selected;
+    const sc = content.taskScenarios[state.task];
+    const band = content.outcomeBand(state.task, active);
+    const out = sc.outcomes[band];
+
     stage.innerHTML = "";
-    const box = el("div", { class: "field gap" },
-      el("div", { class: "legend" }, t.gapResultLabel),
-      el("p", { class: "gap-lead" }, t.gapLead)
-    );
-    const ul = el("ul", { class: "gap-list" });
-    for (const a of missing) ul.appendChild(el("li", {}, a.miss));
-    box.append(ul, el("p", { class: "gap-hint" }, t.swapHint), toolSwap(),
-      el("button", { class: "primary build", onclick: () => { renderChain(); runBuild(); } }, t.rebuildButton));
-    stage.appendChild(box);
-    ctx.storage.track("pilot_gap", { missing: missing.map((a) => a.need), set: [...state.tools.selected] });
-  }
+    stage.appendChild(el("div", { class: "field" },
+      el("div", { class: "legend" }, t.resultLabel),
+      el("div", { class: "callout" }, out.testResult)
+    ));
 
-  // Компактный обмен инструментов: тот же источник (state.tools.selected) и тот
-  // же бюджет в три, что на шаге 2. Рекомендованные помечены. Нового состояния нет.
-  function toolSwap() {
-    const reco = new Set((content.taskTools[state.task] || { reco: [] }).reco);
-    const max = content.ui.step2.maxTools;
-    const grid = el("div", { class: "tool-swap" });
-    const note = el("div", { class: "error", role: "alert" });
-    content.tools.forEach((tool) => {
-      const sel = state.tools.selected;
-      const on = () => sel.includes(tool.id);
-      const chip = el("button", {
-        type: "button",
-        class: "swap-chip" + (on() ? " selected" : "") + (reco.has(tool.id) ? " reco" : ""),
-        "aria-pressed": on() ? "true" : "false"
-      }, tool.name);
-      chip.addEventListener("click", () => {
-        const i = sel.indexOf(tool.id);
-        if (i >= 0) sel.splice(i, 1);
-        else if (sel.length >= max) { note.textContent = content.ui.step2.fourthAttempt; return; }
-        else sel.push(tool.id);
-        note.textContent = "";
-        chip.classList.toggle("selected", on());
-        chip.setAttribute("aria-pressed", on() ? "true" : "false");
-        ctx.update();
-      });
-      grid.appendChild(chip);
+    // Вклад каждого выбранного инструмента: релевантные объясняют, что дали;
+    // нерелевантные честно помечаются как не повлиявшие.
+    const contrib = el("ul", { class: "contrib-list" });
+    active.forEach((id) => {
+      const e = sc.toolEffects[id];
+      if (!e) return;
+      const irrelevant = e.relevance === "irrelevant";
+      contrib.appendChild(el("li", { class: "contrib" + (irrelevant ? " contrib-idle" : "") },
+        el("b", {}, content.toolById[id].name + " — "),
+        irrelevant ? e.note : e.contribution
+      ));
     });
-    return el("div", { class: "swap-wrap" }, grid, note);
+    // Непокрытые ключевые способности — коротко, чтобы читалась причина итога.
+    sc.requiredCapabilities.filter((c) => !active.includes(c.tool))
+      .forEach((c) => contrib.appendChild(el("li", { class: "contrib contrib-miss" }, "Не закрыто: " + c.label)));
+    stage.appendChild(el("div", { class: "field" },
+      el("div", { class: "legend" }, t.contributionsLabel), contrib));
+
+    ctx.storage.track("pilot_test_result", { band, set: [...active] });
+
+    // Достаточно / Доработать. Доработка доступна один раз (testCount < 2).
+    const opts = [{ id: "enough", label: t.enoughLabel }];
+    if (state.testCount < 2) opts.push({ id: "refine", label: t.refineLabel });
+    const choice = choiceRow(opts, state.step3Choice === "enough" ? "enough" : null, (id) => {
+      if (id === "refine") {
+        state.testCount = 2; state.refine = true; state.step3Choice = null; ctx.update();
+        ctx.storage.track("pilot_refine_selected", { band });
+        ctx.back();   // возврат к инструментам, бюджет уже потрачен
+        return;
+      }
+      state.step3Choice = "enough"; state.refine = false; ctx.update();
+      consequence.textContent = consequenceFor(state.testCount >= 2 ? "refine" : "enough");
+      foot.querySelector(".primary").disabled = false;
+      ctx.storage.track("test_decision", { decision: "enough" });
+    });
+    stage.appendChild(fieldset(t.question, choice));
+    if (state.testCount >= 2) stage.appendChild(el("p", { class: "gap-hint" }, t.refineDoneNote));
+    if (state.step3Choice === "enough") consequence.textContent = consequenceFor(state.testCount >= 2 ? "refine" : "enough");
   }
 
-  function resolveResult() {
-    const missing = gaps();
-    if (missing.length === 0) {
-      ctx.storage.track("pilot_covered", { set: [...state.tools.selected] });
-      showWorkingResult();
-    } else {
-      showGapResult(missing);
-    }
-  }
-
-  // Короткая анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
-  // При prefers-reduced-motion анимацию пропускаем и сразу показываем результат.
+  // Анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
   function runBuild() {
+    ctx.storage.track("pilot_test_started", { set: [...state.tools.selected], testNo: state.testCount + 1 });
+    if (state.testCount === 0) { state.testCount = 1; state.tools.purchased = [...state.tools.selected]; ctx.update(); }
     const nodes = [...chainRow.querySelectorAll(".chain-node")];
     const reduce = typeof window !== "undefined" && window.matchMedia
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { nodes.forEach((n) => n.classList.add("lit")); resolveResult(); return; }
+    const done = () => (freeform ? showCustomResult() : showResult());
+    if (reduce) { nodes.forEach((n) => n.classList.add("lit")); done(); return; }
     stage.innerHTML = "";
     stage.appendChild(el("div", { class: "building" }, el("span", {}, t.buildingText)));
     let i = 0;
     const lit = () => {
       if (i < nodes.length) { nodes[i].classList.add("lit"); i += 1; setTimeout(lit, 340); }
-      else setTimeout(resolveResult, 300);
+      else setTimeout(done, 300);
     };
     lit();
   }
 
   renderChain();
-  if (state.step3Choice && gaps().length === 0) {
-    // Возврат на шаг: пилот собран, результат показываем сразу.
+  if (state.testCount >= 1) {
+    // Тест уже запускали (в том числе после доработки) — показываем результат сразу.
     chainRow.querySelectorAll(".chain-node").forEach((n) => n.classList.add("lit"));
-    showWorkingResult();
+    freeform ? showCustomResult() : showResult();
   } else {
-    // Первый заход, либо тройку поменяли и она больше не покрывает задачу.
-    if (state.step3Choice) { state.step3Choice = null; ctx.update(); }
     stage.appendChild(el("button", { class: "ghost build", onclick: runBuild }, t.buildButton));
   }
 
@@ -725,6 +766,7 @@ function step4(ctx) {
     state.publishChannel = id;
     ctx.update();
     ctx.storage.track("channel_selected", { channel: id, wasRecommended: tc.reco.includes(id) });
+    ctx.storage.track("publication_selected", { channel: id, fit: content.publicationFitOf(state.task, id) });
     const locEl = head.querySelector(".loc");
     if (locEl) locEl.textContent = locFor();
     foot.querySelector(".primary").disabled = false;
@@ -781,23 +823,33 @@ function step5Numeric(ctx, wrap, taskLabel) {
   const h = state.hypothesis;
   wrap.appendChild(header({ task: taskLabel, location: t.location, title: t.title, intro: t.intro }));
 
-  // Плитки из чисел задачи и выбора шага 1: было / стало / проверено. «Стало» подсвечено.
+  // Плитки было / стало / проверено. «Стало» теперь зависит от качества цепочки
+  // (бэнд) и от того, подошёл ли задаче выбранный канал публикации.
   const tm = content.taskMetrics[state.task];
-  const m = tm[h.resultChoice] || tm[content.taskResultIds(state.task)[0]];
+  const resultId = tm[h.resultChoice] ? h.resultChoice : content.taskResultIds(state.task)[0];
+  const m = tm[resultId];
   const goal = m.goals.find((g) => g.id === h.goalChoice) || m.goals[0];
+  const chainBand = content.outcomeBand(state.task, state.tools.selected);
+  const fit = content.publicationFitOf(state.task, state.publishChannel);
+  const effBand = content.effectiveBand(chainBand, fit);
+  const stalo = content.observedValue(state.task, resultId, goal.id, effBand);
 
   wrap.appendChild(el("div", { class: "legend" }, t.metricsLabel));
   wrap.appendChild(el("div", { class: "metrics" },
     metric(t.tileWas, m.nowShort),
-    metric(t.tileNow, goal.actual, true),
+    metric(t.tileNow, stalo, true),
     metric(t.tileSample, `${h.sampleSize} ${tm.sampleUnit}`)
   ));
-  wrap.appendChild(el("p", { class: "goal-line" }, tpl(t.goalLineTemplate, { target: goal.targetShort })));
+  const goalTpl = effBand === "strong" ? t.goalReachedTemplate : effBand === "weak" ? t.goalFlatTemplate : t.goalLineTemplate;
+  wrap.appendChild(el("p", { class: "goal-line" }, tpl(goalTpl, { target: goal.targetShort })));
 
-  // После «Доработать» показываем другую по природе поломку, чтобы доработка
-  // на шаге 3 не обесценивалась.
-  const problemText = state.step3Choice === "refine" ? (task.problemAfterRefine || task.problem) : task.problem;
-  wrap.appendChild(el("div", { class: "callout" }, problemText));
+  // Побочный сигнал зависит от наблюдаемого бэнда; неподходящий канал добавляет
+  // отдельную строку. Так итог собирается из цепочки и способа публикации.
+  const observation = content.taskScenarios[state.task]?.outcomes[effBand]?.observation;
+  const problemText = observation || (state.testCount >= 2 ? (task.problemAfterRefine || task.problem) : task.problem);
+  const problemBox = el("div", { class: "callout" }, problemText);
+  if (fit === "weak") problemBox.appendChild(el("p", { class: "muted", style: "margin:8px 0 0" }, t.pubWeakNote));
+  wrap.appendChild(problemBox);
 
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step5Choice });
@@ -813,6 +865,7 @@ function step5Numeric(ctx, wrap, taskLabel) {
       consequence.textContent = content.step5Consequence[id];
       foot.querySelector(".primary").disabled = false;
       ctx.storage.track("monitor_decision", { decision: id });
+      ctx.storage.track("observation_decision", { decision: id });
     }
   );
 
@@ -873,41 +926,76 @@ function final(ctx) {
   const { content, state } = ctx;
   const f = content.final;
   const task = content.taskById[state.task];
-  // Вариант финала определяется решением шага 5.
   const key = state.finalVariant || state.step5Choice || "scale";
-  const isWatch = key === "watch";
+  const freeform = state.hypothesis.freeform;   // своя задача и любой свободный ввод — черновик без метрик
   const wrap = el("div", { class: "final" });
-
-  // У своей задачи в карточку идёт введённый текст, а не заглушка карточки.
   const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
-  // Строка проверки: в свободной ветке — что игрок наблюдает; в числовой — размер выборки.
-  const checkNote = isWatch
-    ? `смотрю ${content.watchWhat(state)}, вернусь через две недели`
-    : buildHypothesisParts(state.task, state.hypothesis.resultChoice, state.hypothesis.goalChoice, state.hypothesis.sampleSize, state.ownTaskText.trim()).check;
+  const kv = (label, value) => value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
 
-  // ── Герой финала: метка места, крупное решение (главное сообщение экрана),
-  // одна фраза-итог. Решение — единственный h1, на него уходит фокус при входе.
-  const hero = el("div", { class: "final-hero" },
+  const hero = (headline, sub) => el("div", { class: "final-hero" },
     el("div", { class: "final-badge" }, f.metaBadge),
     el("div", { class: "final-hero-row" },
-      el("h1", { class: "final-decision", tabindex: "-1" }, f.heroTitles[key] || f.heroTitles.scale),
+      el("h1", { class: "final-decision", tabindex: "-1" }, headline),
       elSvg("div", "final-conveyor", CONVEYOR_SVG)
     ),
-    el("p", { class: "final-decision-sub" }, f.heroSubtitles[key] || f.heroSubtitles.scale)
+    el("p", { class: "final-decision-sub" }, sub)
   );
-  wrap.appendChild(hero);
 
-  // ── Карточка «Твой пилот»: компактная сводка в четыре строки. Инструменты,
-  // режим и канал остаются в state и в копируемом тексте, но здесь не выводятся.
-  const kv = (label, value) =>
-    value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
-  wrap.appendChild(el("div", { class: "final-card" },
-    el("div", { class: "final-card-title" }, f.cardTitle),
-    kv(f.cardTaskLabel, taskLabel),
-    kv(f.cardHypothesisLabel, content.hypothesisText(state)),
-    kv(f.cardCheckLabel, checkNote),
-    kv(f.cardDecisionLabel, f.cardDecisionNames[key] || f.cardDecisionNames.scale)
-  ));
+  if (freeform) {
+    // ── Своя задача: черновик пилота для разговора со стендистом. Ни выдуманных
+    // «было → стало», ни оценки качества стека — только собранный черновик.
+    const chainNames = state.tools.selected.map((id) => content.toolById[id]?.name).filter(Boolean);
+    const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
+    wrap.appendChild(hero(f.customHeadline, f.customSub));
+    wrap.appendChild(el("div", { class: "final-card" },
+      el("div", { class: "final-card-title" }, f.recapLabel),
+      kv(f.customTaskLabel, taskLabel),
+      kv(f.customHypothesisLabel, content.hypothesisText(state)),
+      kv(f.customChainLabel, chainNames.join(" → ")),
+      kv(f.customChannelLabel, channelName),
+      kv(f.customWatchLabel, content.watchWhat(state))
+    ));
+    wrap.appendChild(el("p", { class: "final-stand-note" }, f.customStandNote));
+  } else {
+    // ── Готовый кейс: исход, метрики и recap ролей инструментов в этом кейсе.
+    const sc = content.taskScenarios[state.task];
+    const h = state.hypothesis;
+    const tm = content.taskMetrics[state.task];
+    const resultId = tm[h.resultChoice] ? h.resultChoice : content.taskResultIds(state.task)[0];
+    const m = tm[resultId];
+    const goal = m.goals.find((g) => g.id === h.goalChoice) || m.goals[0];
+    const chainBand = content.outcomeBand(state.task, state.tools.selected);
+    const fit = content.publicationFitOf(state.task, state.publishChannel);
+    const effBand = content.effectiveBand(chainBand, fit);
+    const overbuilt = content.isOverbuilt(state.task, state);
+
+    const headline = key === "stop" ? f.outcomeStop : overbuilt ? f.outcomeOverbuilt : sc.outcomes[effBand].headline;
+    const sub = key === "stop" ? f.outcomeSubStop : overbuilt ? f.outcomeSubOverbuilt : sc.outcomes[effBand].observation;
+    wrap.appendChild(hero(headline, sub));
+
+    // Метрики: было / стало / цель / потраченный бюджет.
+    wrap.appendChild(el("div", { class: "final-metrics" },
+      metric(f.mWas, m.nowShort),
+      metric(f.mNow, content.observedValue(state.task, resultId, goal.id, effBand), true),
+      metric(f.mGoal, goal.targetShort),
+      metric(f.mBudget, String(content.budgetSpent(state)))
+    ));
+
+    // «Твой пилот»: роль каждого выбранного инструмента конкретно в этом кейсе.
+    const recap = el("div", { class: "final-card" }, el("div", { class: "final-card-title" }, f.recapLabel));
+    const list = el("ul", { class: "recap-list" });
+    state.tools.selected.forEach((id) => {
+      const e = sc.toolEffects[id]; if (!e) return;
+      const idle = e.relevance === "irrelevant";
+      list.appendChild(el("li", { class: "recap" + (idle ? " recap-idle" : "") },
+        el("b", {}, content.toolById[id].name + " — "),
+        idle ? e.note : e.contribution));
+    });
+    recap.appendChild(list);
+    recap.appendChild(el("div", { class: "kv recap-decision" },
+      el("b", {}, f.recapDecisionLabel + ": "), f.cardDecisionNames[key] || f.cardDecisionNames.scale));
+    wrap.appendChild(recap);
+  }
 
   // ── Скопировать план: вторичное действие с иконкой, не primary. Механика
   // buildShareText и clipboard без изменений. Всё копирование программное; на

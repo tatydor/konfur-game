@@ -71,7 +71,11 @@ function persist() {
 // События входа на экран: шаг, финал или анкета.
 function trackEntry(id) {
   if (stepNoMap[id]) storage.track("step_viewed", { step: id, stepNo: stepNoMap[id] });
-  else if (id === "final") storage.track("final_viewed", { variant: state.finalVariant || state.step5Choice });
+  else if (id === "final") {
+    const variant = state.finalVariant || state.step5Choice;
+    storage.track("final_viewed", { variant });
+    storage.track("final_screen_viewed", { variant });
+  }
   else if (id === "anketa") storage.track("survey_opened");
 }
 

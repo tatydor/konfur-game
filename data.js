@@ -297,18 +297,35 @@ export function buildHypothesis(taskId, resultId, goalId, sampleSize, ownTaskTex
 
 // Шаг 2: десять инструментов платформы. Выбрать можно три.
 // badge оставлен в данных, но в интерфейсе не показывается (пометки зрелости убраны)
+// cost — игровой показатель сложности внедрения (не цена сервиса), тратится из
+// бюджета пилота (pilotBudget). Значения — из ТЗ «инструменты как механика».
 export const tools = [
-  { id: "llm",      name: "LLM",                  explain: "Большие языковые модели: пишут, переписывают, отвечают, разбирают текст.", badge: "Зрелый",        role: "разберёт и сформулирует текст" },
-  { id: "rag",      name: "RAG",                  explain: "Ответы по вашим базам и документам, со ссылкой на источник.",             badge: "Зрелый",        role: "найдёт ответ в вашей базе" },
-  { id: "ocr",      name: "OCR",                  explain: "Распознавание текста на сканах и фотографиях.",                          badge: "Зрелый",        role: "распознает текст на сканах" },
-  { id: "ner",      name: "NER",                  explain: "Находит в тексте сущности: суммы, даты, названия, реквизиты.",           badge: "Зрелый",        role: "выделит нужные поля" },
-  { id: "asr_tts",  name: "ASR и TTS",            explain: "Речь в текст и обратно.",                                                badge: "Зрелый",        role: "переведёт речь в текст" },
-  { id: "dify",     name: "Dify",                 explain: "Конструктор агентов и ассистентов, собирается мышкой.",                  badge: "Без кода",      role: "соберёт всё в процесс" },
-  { id: "mcp",      name: "MCP",                  explain: "Интеграции с вики, YouTrack и другими источниками.",                     badge: "Новый",         role: "подтянет данные из систем" },
-  { id: "cargo",    name: "Cargo",                explain: "Поиск и сбор новостей по источникам.",                                   badge: "Новый",         role: "соберёт новости по источникам" },
-  { id: "imagegen", name: "Image Gen API",        explain: "Генерация и обработка изображений.",                                     badge: "Новый",         role: "сделает изображение" },
-  { id: "agents",   name: "Агентские фреймворки", explain: "Автономные системы с памятью, состоянием и своими инструментами.",       badge: "В начале пути", role: "выполнит шаги сам" }
+  { id: "llm",      name: "LLM",                  explain: "Большие языковые модели: пишут, переписывают, отвечают, разбирают текст.", cost: 25, badge: "Зрелый",        role: "разберёт и сформулирует текст" },
+  { id: "rag",      name: "RAG",                  explain: "Ответы по вашим базам и документам, со ссылкой на источник.",             cost: 25, badge: "Зрелый",        role: "найдёт ответ в вашей базе" },
+  { id: "ocr",      name: "OCR",                  explain: "Распознавание текста на сканах и фотографиях.",                          cost: 15, badge: "Зрелый",        role: "распознает текст на сканах" },
+  { id: "ner",      name: "NER",                  explain: "Находит в тексте сущности: суммы, даты, названия, реквизиты.",           cost: 15, badge: "Зрелый",        role: "выделит нужные поля" },
+  { id: "asr_tts",  name: "ASR и TTS",            explain: "Речь в текст и обратно.",                                                cost: 20, badge: "Зрелый",        role: "переведёт речь в текст" },
+  { id: "dify",     name: "Dify",                 explain: "Конструктор агентов и ассистентов, собирается мышкой.",                  cost: 20, badge: "Без кода",      role: "соберёт всё в процесс" },
+  { id: "mcp",      name: "MCP",                  explain: "Интеграции с вики, YouTrack и другими источниками.",                     cost: 20, badge: "Новый",         role: "подтянет данные из систем" },
+  { id: "cargo",    name: "Cargo",                explain: "Поиск и сбор новостей по источникам.",                                   cost: 20, badge: "Новый",         role: "соберёт новости по источникам" },
+  { id: "imagegen", name: "Image Gen API",        explain: "Генерация и обработка изображений.",                                     cost: 25, badge: "Новый",         role: "сделает изображение" },
+  { id: "agents",   name: "Агентские фреймворки", explain: "Автономные системы с памятью, состоянием и своими инструментами.",       cost: 30, badge: "В начале пути", role: "выполнит шаги сам" }
 ];
+
+// Бюджет пилота — заменяет прежний лимит «выбрать три». Единицы условные:
+// показывают сложность/ресурс внедрения, не стоимость сервисов.
+export const pilotBudget = 100;
+export const budgetNote = "условная сложность пилота, не стоимость сервисов";
+export const toolCost = (id) => toolById[id]?.cost || 0;
+// Сколько уже потрачено: купленные на первом тесте инструменты (sunk) плюс
+// добавленные сверх них в активной цепочке. Купленное не возвращается.
+export function budgetSpent(state) {
+  const sunk = state.tools.purchased || [];
+  const active = state.tools.selected || [];
+  const extra = active.filter((id) => !sunk.includes(id));
+  return [...sunk, ...extra].reduce((s, id) => s + toolCost(id), 0);
+}
+export const budgetLeft = (state) => pilotBudget - budgetSpent(state);
 
 // Шаг 2: рекомендованные (в бюджет) и альтернативные инструменты под задачу. VERIFY:highlight
 export const taskTools = {
@@ -370,6 +387,168 @@ export const taskAbilities = {
 export function pilotGaps(taskId, selected = []) {
   const abilities = taskAbilities[taskId] || [];
   return abilities.filter((a) => !selected.includes(a.need));
+}
+
+// ─────────────────────────────────────────────────────────────
+// Матрица инструментов как игровая механика (ТЗ «инструменты платформы»).
+// Только для четырёх готовых кейсов. Своя задача (freeform) сюда не заходит:
+// для неизвестной задачи игра не считает покрытие и не выдумывает эффект.
+//
+//   requiredCapabilities — 2–3 ключевые способности, каждую закрывает один core-
+//     инструмент. Покрытие определяет бэнд результата (strong/partial/weak).
+//   toolEffects[id] — релевантность (core|useful|context|irrelevant) и короткая
+//     строка вклада (что инструмент дал) или пометка, почему не повлиял.
+//   publicationFit[channel] — насколько канал подходит задаче (good|acceptable|weak).
+//   outcomes[band] — заголовок исхода, строка теста и побочный показатель.
+// ─────────────────────────────────────────────────────────────
+export const taskScenarios = {
+  documents: {
+    requiredCapabilities: [
+      { id: "read",    label: "прочитать сканы", tool: "ocr" },
+      { id: "extract", label: "выделить поля",   tool: "ner" }
+    ],
+    toolEffects: {
+      ocr:  { relevance: "core",       contribution: "распознал текст на сканах и фотографиях." },
+      ner:  { relevance: "core",       contribution: "выделил суммы, даты и реквизиты." },
+      dify: { relevance: "useful",     contribution: "собрал распознавание и извлечение в один процесс." },
+      llm:  { relevance: "useful",     contribution: "привёл разнородные подписи полей к единому виду." },
+      mcp:  { relevance: "useful",     contribution: "положил извлечённые поля прямо в учётную систему." },
+      rag:  { relevance: "context",    contribution: "подсказал заполнение поля по справочнику." },
+      agents: { relevance: "context",  contribution: "тут избыточен: процесс уже собран в Dify." },
+      asr_tts:  { relevance: "irrelevant", note: "не нужны: в документах нет речи." },
+      cargo:    { relevance: "irrelevant", note: "собирает новости, а не разбирает документы." },
+      imagegen: { relevance: "irrelevant", note: "в разборе документов не участвует." }
+    },
+    publicationFit: { api: "good", background: "good", chat: "acceptable", widget: "weak" },
+    outcomes: {
+      strong:  { headline: "Цель достигнута",                 testResult: "Из счёта извлечено 11 полей из 12, дата распознана верно.", observation: "Сканы одного формата иногда требуют проверки даты." },
+      partial: { headline: "Ускорили только часть процесса",  testResult: "Часть шага автоматизирована, часть осталась руками.",       observation: "Один из ключевых шагов пока делается вручную." },
+      weak:    { headline: "Пилот почти не сдвинул цифру",    testResult: "Ни распознать сканы, ни выделить поля пока нечем.",         observation: "Данные по-прежнему переносишь руками." }
+    }
+  },
+  requests: {
+    requiredCapabilities: [
+      { id: "understand", label: "разобрать обращение",  tool: "llm" },
+      { id: "assemble",   label: "собрать в процесс",    tool: "dify" },
+      { id: "integrate",  label: "дотянуться до систем", tool: "mcp" }
+    ],
+    toolEffects: {
+      llm:  { relevance: "core",    contribution: "определила тип обращения." },
+      dify: { relevance: "core",    contribution: "провёл обращения через собранный сценарий." },
+      mcp:  { relevance: "core",    contribution: "забрал обращения из рабочей системы и вернул ответы." },
+      ner:  { relevance: "useful",  contribution: "выделил в письмах номера договоров и суммы." },
+      rag:  { relevance: "useful",  contribution: "подсказал связанные инструкции по вопросу." },
+      agents: { relevance: "context", contribution: "избыточен: сценарий уже собран в Dify." },
+      ocr:      { relevance: "irrelevant", note: "не повлиял: обращения приходят текстом." },
+      asr_tts:  { relevance: "irrelevant", note: "не нужны: заявки текстовые." },
+      cargo:    { relevance: "irrelevant", note: "собирает новости, а не разбирает заявки." },
+      imagegen: { relevance: "irrelevant", note: "в разборе заявок не участвует." }
+    },
+    publicationFit: { widget: "good", chat: "good", api: "acceptable", background: "weak" },
+    outcomes: {
+      strong:  { headline: "Цель достигнута",                testResult: "Разобрано 47 писем из 50, три ушли не в ту очередь.", observation: "В 6% случаев нужна помощь человека." },
+      partial: { headline: "Пилот работает, до цели не дотянули", testResult: "Письма прочитаны, но развести их по очередям нечем.", observation: "Узкое место — ручная передача результата между системами." },
+      weak:    { headline: "Ускорили только часть процесса", testResult: "Понять содержание письма пока нечем.",                observation: "Каждое обращение всё равно разбираешь вручную." }
+    }
+  },
+  news: {
+    requiredCapabilities: [
+      { id: "collect", label: "собрать новости",   tool: "cargo" },
+      { id: "filter",  label: "разобрать и отсеять", tool: "llm" }
+    ],
+    toolEffects: {
+      cargo: { relevance: "core",   contribution: "собрал материалы по источникам." },
+      llm:   { relevance: "core",   contribution: "отсеяла дубли и нерелевантное." },
+      dify:  { relevance: "useful", contribution: "собрал сбор и разбор в регулярный процесс." },
+      mcp:   { relevance: "useful", contribution: "подтянул источники из внутренних систем." },
+      ner:   { relevance: "useful", contribution: "выделил в новостях компании и даты." },
+      rag:   { relevance: "useful", contribution: "связал новость с внутренними документами." },
+      asr_tts: { relevance: "context", contribution: "пригодился бы, будь среди источников подкасты и видео." },
+      agents:  { relevance: "context", contribution: "для регулярной подборки избыточен." },
+      ocr:      { relevance: "irrelevant", note: "не повлиял: материалы приходят текстом." },
+      imagegen: { relevance: "irrelevant", note: "в сборе новостей не участвует." }
+    },
+    publicationFit: { background: "good", chat: "acceptable", api: "acceptable", widget: "weak" },
+    outcomes: {
+      strong:  { headline: "Цель достигнута",                testResult: "За сутки собрано 6 материалов, лишнее отсеяно.", observation: "Пара источников иногда дублирует новости." },
+      partial: { headline: "Ускорили только часть процесса", testResult: "Лента наполняется, но чистит её человек.",       observation: "Один из ключевых шагов пока делается вручную." },
+      weak:    { headline: "Пилот почти не сдвинул цифру",   testResult: "Ни собрать материалы, ни отсеять лишнее пока нечем.", observation: "Ленту по-прежнему читаешь вручную." }
+    }
+  },
+  contract: {
+    requiredCapabilities: [
+      { id: "understand", label: "понять правки",     tool: "llm" },
+      { id: "compare",    label: "сверить с эталоном", tool: "rag" }
+    ],
+    toolEffects: {
+      llm:  { relevance: "core",    contribution: "сопоставила формулировки и объяснила смысл правок." },
+      rag:  { relevance: "core",    contribution: "сверил договор с типовой формой и прежними версиями." },
+      ner:  { relevance: "useful",  contribution: "выделил номера пунктов, суммы и даты." },
+      dify: { relevance: "useful",  contribution: "собрал сверку в повторяемый процесс." },
+      mcp:  { relevance: "useful",  contribution: "подтянул типовые формы из хранилища." },
+      ocr:    { relevance: "context", contribution: "понадобился бы, приди договор сканом." },
+      agents: { relevance: "context", contribution: "для сверки избыточен." },
+      asr_tts:  { relevance: "irrelevant", note: "не нужны: договор текстовый." },
+      cargo:    { relevance: "irrelevant", note: "собирает новости, а не сверяет договоры." },
+      imagegen: { relevance: "irrelevant", note: "в сверке договоров не участвует." }
+    },
+    publicationFit: { api: "good", chat: "good", widget: "acceptable", background: "weak" },
+    outcomes: {
+      strong:  { headline: "Цель достигнута",                testResult: "Найдено 3 смысловых отличия от типовой формы.", observation: "Форматные отличия иногда попадают в список." },
+      partial: { headline: "Ускорили только часть процесса", testResult: "Правки находит, а сверить с эталоном нечем.",     observation: "Один из ключевых шагов пока делается вручную." },
+      weak:    { headline: "Пилот почти не сдвинул цифру",   testResult: "Ни понять правки, ни сверить с формой пока нечем.", observation: "Договоры по-прежнему сверяешь глазами." }
+    }
+  }
+};
+
+// Порядок релевантности и понятная подпись для интерфейса.
+export const relevanceRank = { core: 3, useful: 2, context: 1, irrelevant: 0 };
+
+// Бэнд результата по покрытию ключевых способностей активной цепочкой.
+// Все ключевые закрыты — strong, ни одной — weak, иначе partial.
+export function outcomeBand(taskId, activeIds = []) {
+  const sc = taskScenarios[taskId];
+  if (!sc) return null;
+  const caps = sc.requiredCapabilities;
+  const covered = caps.filter((c) => activeIds.includes(c.tool)).length;
+  if (covered === caps.length) return "strong";
+  if (covered === 0) return "weak";
+  return "partial";
+}
+
+// Наблюдаемый бэнд с поправкой на канал публикации: неподходящий канал (weak)
+// снижает результат на ступень, подходящий оставляет как есть.
+export function effectiveBand(band, fit) {
+  const order = ["weak", "partial", "strong"];
+  const i = order.indexOf(band);
+  if (i < 0) return band;
+  if (fit === "weak") return order[Math.max(0, i - 1)];
+  return band;
+}
+
+// Пилот собран сложнее необходимого: цель достигнута, но в активной цепочке есть
+// нерелевантные инструменты или потрачена почти вся смета.
+export function isOverbuilt(taskId, state) {
+  const sc = taskScenarios[taskId];
+  if (!sc || outcomeBand(taskId, state.tools.selected) !== "strong") return false;
+  const hasIrrelevant = state.tools.selected.some((id) => sc.toolEffects[id]?.relevance === "irrelevant");
+  return hasIrrelevant || budgetSpent(state) >= 85;
+}
+
+// Соответствие выбранного канала задаче (для готовых кейсов).
+export function publicationFitOf(taskId, channelId) {
+  return taskScenarios[taskId]?.publicationFit?.[channelId] || null;
+}
+
+// «Стало» на шаге 5 по наблюдаемому бэнду: strong — цель достигнута, partial —
+// промежуточное значение (actual), weak — почти как было.
+export function observedValue(taskId, resultId, goalId, band) {
+  const m = taskMetrics[taskId]?.[resultId];
+  if (!m) return "";
+  const goal = m.goals.find((g) => g.id === goalId) || m.goals[0];
+  if (band === "strong") return goal.targetShort;
+  if (band === "weak") return m.nowShort;
+  return goal.actual;
 }
 
 // Шаг 4: каналы публикации. name — пользовательский сценарий, tools — внутренние
@@ -478,13 +657,21 @@ export const ui = {
   step2: {
     location: "ИИ Платформа, ai.kontur.host",
     title: "Из чего собирать",
-    intro: "Гипотеза записана, пилот можно начинать. В Контуре десять инструментов, доступных сразу, выбрать можно три. Ограничение не наше, а бюджета и сроков, в жизни оно ровно такое же.",
-    maxTools: 3,
-    // Пометки зрелости в углу карточки убраны — не нагружаем интерфейс.
-    fourthAttempt: "Четвёртый инструмент в Контуре есть, а в бюджете нет. Сними галочку с любого.",
-    counterTemplate: "Выбрано {n} из {max}",
+    intro: "Гипотеза записана, пилот можно начинать. В Контуре десять инструментов, доступных сразу. Собери из них пилот в рамках бюджета: у каждого своя цена по сложности внедрения.",
+    budgetTitle: "Бюджет пилота",
+    budgetLeftTemplate: "Осталось {left} из {total}",
+    budgetSpentTemplate: "Потрачено {spent}",
+    cantAffordTemplate: "Не хватает {n}",
+    costTemplate: "{cost}",
+    hintButton: "Подсказать",
+    hintText: "Подсветили инструменты, которые обычно нужны под такую задачу. Собирать пилот всё равно тебе.",
+    hintOwnText: "Свою задачу игра не знает достаточно, чтобы советовать стек. Смотри на роль каждого инструмента и собирай сам.",
+    allCountLabel: "10 инструментов платформы",
     allToolsToggle: "Посмотреть все инструменты",
+    emptyChainError: "Собери хотя бы один инструмент, иначе проверять нечего.",
     gapsTitle: "Не нашлось нужного? Отметь, чего не хватает.",
+    refineBanner: "Доработка пилота. Поменяй цепочку в рамках остатка бюджета: потраченное не вернётся, уже купленное включается бесплатно.",
+    refineButton: "Проверить снова →",
     button: "Проверить решение"
   },
   step3: {
@@ -495,9 +682,12 @@ export const ui = {
     buildButton: "Запустить тест",
     buildingText: "Прогоняем на реальном случае",
     resultLabel: "Что получилось на реальном случае",
+    contributionsLabel: "Что дал каждый инструмент",
+    customResult: "Цепочка собрана. Следующий шаг — проверить её на реальных случаях из твоей задачи и сравнить результат с гипотезой.",
     question: "Достаточно хорошо?",
     enoughLabel: "Достаточно",
     refineLabel: "Доработать",
+    refineDoneNote: "Одну доработку уже сделали, второй раунд в игре не проходим.",
     gapResultLabel: "Пилот собрался не весь",
     gapLead: "Чтобы пройти проверку на реальном случае, в сборке не хватает вот чего:",
     swapHint: "Поменяй инструмент в тех же трёх и собери заново.",
@@ -527,6 +717,9 @@ export const ui = {
     tileNow: "Стало",
     tileSample: "Проверено",
     goalLineTemplate: "Цель была {target}, до неё не дотянули.",
+    goalReachedTemplate: "Цель {target} достигнута.",
+    goalFlatTemplate: "Цель была {target}, но цифра почти не сдвинулась.",
+    pubWeakNote: "Канал публикации не подошёл задаче: часть пользователей до решения не дошла.",
     watchQuestion: "Числа мы не собирали: критерий ты описал словами. Назови, за чем будешь следить.",
     watchOwnPlaceholder: "например, сколько заявок прошло без правок",
     watchConsequenceTemplate: "Через две недели сравниваешь {what} до и после. Без этой цифры пилот нельзя ни закрыть, ни продлить: спорить будете мнениями.",
@@ -610,6 +803,27 @@ export const final = {
   // Человекочитаемое решение для карточки финала (не трогает decisionLabels,
   // который остаётся форматом строки для копируемого текста и совместимости).
   cardDecisionNames: { scale: "Масштабировать", fix: "Доработать", stop: "Остановить", watch: "Наблюдать" },
+  // Расширенный финал готового кейса: заголовок-исход, метрики и recap цепочки.
+  outcomeStop: "Вовремя остановили пилот",
+  outcomeOverbuilt: "Решение получилось сложнее необходимого",
+  outcomeSubStop: "Проверка показала, где решение спотыкается. Ресурсы не ушли в лишнее масштабирование.",
+  outcomeSubOverbuilt: "Цель достигнута, но часть компонентов почти не повлияла на результат.",
+  metricsLabel: "Что показал пилот",
+  mWas: "Было",
+  mNow: "Стало",
+  mGoal: "Цель",
+  mBudget: "Бюджет",
+  recapLabel: "Твой пилот",
+  recapDecisionLabel: "Решение",
+  // Финал своей задачи: черновик пилота для разговора со стендистом, без выдуманных метрик.
+  customHeadline: "Черновик пилота собран",
+  customSub: "Проверишь его на своих случаях и обсудишь со стендистом.",
+  customTaskLabel: "Твоя задача",
+  customHypothesisLabel: "Гипотеза",
+  customChainLabel: "Черновик цепочки",
+  customChannelLabel: "Канал",
+  customWatchLabel: "Будем смотреть",
+  customStandNote: "Покажи этот план стендисту — вместе проверите цепочку и следующий шаг.",
   cardFooter: "Под каждый шаг в Контуре уже был готовый инструмент.",
   cardFooterStop: "Все пять шагов прошли на готовых инструментах Контура.",
   cardFooterGaps: "Под большинство шагов инструмент в Контуре уже был. Чего не хватило, мы записали.",
@@ -683,10 +897,10 @@ export const system = {
 //    отдельно не хранится, а выводится из признака edited и finalText.
 // ─────────────────────────────────────────────────────────────
 // Версия структуры состояния. При несовпадении старое сохранение не восстанавливаем.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.8.1";
+export const GAME_VERSION = "0.9.0";
 
 export function createInitialState() {
   const now = Date.now();
@@ -708,9 +922,12 @@ export function createInitialState() {
       sampleSize: null     // число из samples задачи (предвыбрана первая)
     },
     tools: {
-      selected: [],      // до трёх id из tools
-      gaps: []           // id из gapOptions
+      selected: [],      // активная цепочка (activeToolIds) — id из tools
+      gaps: [],          // id из gapOptions
+      purchased: []      // купленные к первому тесту (sunk-бюджет), не возвращаются
     },
+    testCount: 0,        // сколько раз запускали проверку: 0 | 1 | 2 (макс одна доработка)
+    refine: false,       // идёт доработка после первого теста (возврат к инструментам)
     step3Choice: null,   // "enough" | "refine"
     publishChannel: null, // выбранный канал публикации (шаг 4)
     step5Choice: null,   // "fix" | "scale" | "stop" (в свободной ветке не заполняется)
@@ -732,7 +949,9 @@ export function createInitialState() {
 // чтобы новая ветка не наследовала гипотезу, инструменты и решения старой.
 export function resetDependentOnTask(state) {
   state.hypothesis = { finalText: "", freeform: false, customText: "", resultChoice: null, goalChoice: null, sampleSize: null };
-  state.tools = { selected: [], gaps: [] };
+  state.tools = { selected: [], gaps: [], purchased: [] };
+  state.testCount = 0;
+  state.refine = false;
   state.step3Choice = null;
   state.publishChannel = null;
   state.step5Choice = null;
@@ -873,6 +1092,8 @@ export const content = {
   resultOptions, watchOptions, taskAction, taskMetrics, taskResultIds, metricDefaults,
   buildHypothesis, buildHypothesisParts, buildSummary, buildShareText, hypothesisText, watchWhat,
   tools, toolById, taskTools, gapOptions,
+  pilotBudget, budgetNote, toolCost, budgetSpent, budgetLeft,
+  taskScenarios, relevanceRank, outcomeBand, effectiveBand, isOverbuilt, publicationFitOf, observedValue,
   channels, channelById, taskChannels,
   step3Consequence, taskAbilities, pilotGaps, step5Consequence,
   ui, final, anketa, system, flow, pathMap
