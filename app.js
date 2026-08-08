@@ -134,6 +134,13 @@ const ctx = {
 // Узлы — только указатель, по ним нельзя перескакивать между шагами.
 function pathMapEl() {
   const idx = content.pathMap.findIndex((n) => n.step === screen);
+  // «Назад» переехало из футера в строку карты пути, слева от первого узла.
+  const backBtn = el("button", {
+    class: "pathmap-back", type: "button",
+    "aria-label": "Назад к предыдущему шагу",
+    onclick: () => back()
+  });
+  backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
   const map = el("div", { class: "pathmap", role: "list", "aria-label": "Карта пути" });
   content.pathMap.forEach((node, i) => {
     const status = i < idx ? "done" : i === idx ? "current" : "upcoming";
@@ -145,7 +152,7 @@ function pathMapEl() {
       el("span", { class: "node-label" }, node.label)
     ));
   });
-  return map;
+  return el("div", { class: "pathmap-row" }, backBtn, map);
 }
 
 function resumeBanner() {

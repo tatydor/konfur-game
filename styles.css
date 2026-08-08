@@ -505,3 +505,100 @@ button.restart { display: block; margin: 24px auto 0; }
 @media (prefers-reduced-motion: reduce) {
   .intro-cargo { animation: none !important; }
 }
+
+/* ── Числовая гипотеза и свободная ветка (v0.7.0) ──────────────────────── */
+
+/* Шапка: плашка задачи и бейдж места в одну строку. Плашка обрезается многоточием. */
+.head-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; flex-wrap: nowrap; }
+.head-meta .loc { margin-bottom: 0; }
+.task-loc {
+  min-width: 0; flex: 0 1 auto;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text); border-color: var(--line);
+}
+.head-meta .loc:not(.task-loc) { flex: none; }
+
+/* «Назад» в строке карты пути, слева от первого узла, на линии кружков. */
+.pathmap-row { display: flex; align-items: flex-start; gap: 4px; margin-bottom: 18px; }
+.pathmap-row .pathmap { flex: 1; margin-bottom: 0; }
+.pathmap-back {
+  flex: none; align-self: flex-start;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; margin: -10px 0 0 -10px;
+  padding: 0; background: none; border: none; color: var(--muted); cursor: pointer;
+}
+.pathmap-back svg { width: 22px; height: 22px; }
+.pathmap-back:hover { color: var(--text); }
+
+/* Карточка гипотезы и поле свободной ветки — один набор свойств: чтение и правка
+   выглядят одинаково. Дисплейный шрифт здесь не используем, только текстовый. */
+.hyp-card, .hyp-free {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 14px 16px;
+  font-family: var(--font-text);
+  font-size: clamp(1.15rem, 4.6vw, 1.35rem);
+  line-height: 1.35;
+  color: var(--text);
+  max-width: 42ch;
+}
+.hyp-free { display: block; width: 100%; min-height: 120px; resize: vertical; margin-top: 4px; }
+.hyp-card { position: relative; padding-right: 46px; margin: 4px 0 0; }
+.hyp-card .slot { color: var(--accent); }
+/* Подсветка изменённого фрагмента на 600 мс; под reduced-motion гасится общим блоком. */
+.hyp-card .slot.flash {
+  border-radius: 4px;
+  animation: slot-flash 0.6s ease;
+}
+@keyframes slot-flash {
+  0%   { background: color-mix(in srgb, var(--accent) 34%, transparent); }
+  100% { background: transparent; }
+}
+
+/* Карандаш правки в правом верхнем углу карточки. */
+.hyp-edit {
+  position: absolute; top: 8px; right: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  background: none; border: none; color: var(--muted); cursor: pointer; border-radius: 8px;
+}
+.hyp-edit svg { width: 18px; height: 18px; }
+.hyp-edit:hover { color: var(--accent); background: var(--surface-2); }
+
+/* Заголовок и подводка шага 1 меньше, чтобы карточка стала самым крупным блоком. */
+[data-screen="step1"] h1 { font-size: 1.15rem; margin-bottom: 6px; }
+[data-screen="step1"] .intro { font-size: 0.86rem; }
+
+/* Блок выбора цели: название и мелкой строкой целевое значение. */
+.goal-choice { flex-direction: column; align-items: flex-start; gap: 0; padding-top: 6px; padding-bottom: 6px; }
+.goal-choice .goal-name { font-weight: 600; }
+.goal-choice .goal-sub { font-size: 0.78rem; opacity: 0.8; }
+.goal-choice.selected .goal-sub { opacity: 0.9; }
+
+/* Модальное окно правки гипотезы. */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px; background: rgba(10, 20, 40, 0.62);
+}
+.modal-panel {
+  width: 100%; max-width: 460px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+}
+.modal-title { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 6px; }
+.modal-intro { color: var(--muted); font-size: 0.88rem; margin: 0 0 12px; }
+.modal-field { min-height: 130px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.modal-actions .primary, .modal-actions .ghost { margin: 0; }
+
+/* Шаг 5, числовая ветка: плитка «Стало» подсвечена, цель строкой под плитками. */
+.metric-accent { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.metric-accent .metric-value { color: var(--accent); }
+.goal-line { color: var(--muted); font-size: 0.9rem; margin: 4px 0 0; }
+
+/* Шаг 5, свободная ветка: поле для своей метрики. */
+.watch-own-wrap { margin: 10px 0 0; }
+.watch-own { max-width: 42ch; }

@@ -3,22 +3,37 @@
 // каждый экран оставляет игроку промежуточный итог и кнопку дальше.
 
 import { el, tpl } from "./dom.js";
-import { resetDependentOnTask, buildHypothesis, buildShareText } from "./data.js";
+import { resetDependentOnTask, buildHypothesis, buildHypothesisParts, buildShareText } from "./data.js";
 
-const HYP_MAX = 220; // предел длины гипотезы
+const HYP_MAX = 220;      // предел длины гипотезы
+const WATCH_OWN_MAX = 80; // название метрики в свободной ветке — короткое
 
-// Заготовка гипотезы одним генератором: buildHypothesis с дефолтными значениями
-// задачи. Второго источника (поля seed) больше нет — превью, заготовка и итог
-// собираются этим же кодом. У своей задачи в действие подставляется введённый
-// текст (state.ownTaskText непустой — этого требует переход с входного экрана).
-function defaultHypothesis(state, task) {
-  return buildHypothesis(task.id, task.defaultResult, task.defaultCriterion, state.ownTaskText.trim());
+// Карандаш правки карточки гипотезы.
+const PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+// Замыкание фокуса в модалке: Tab с последнего элемента ведёт на первый и наоборот.
+function trapTab(e, container) {
+  const f = container.querySelectorAll('button, textarea, input, a[href], [tabindex]:not([tabindex="-1"])');
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
 // ── Общие детали ──────────────────────────────────────────────
+// Шапка: плашка «Задача: …» (шаги 1 и 5) и бейдж места в одну строку, затем
+// заголовок и подводка. Без плашки бейдж рендерится как раньше — одиночный .loc.
 function header(cfg) {
+  let locNode = null;
+  if (cfg.task) {
+    const plate = el("span", { class: "loc task-loc", title: "Задача: " + cfg.task }, "Задача: " + cfg.task);
+    locNode = el("div", { class: "head-meta" }, plate,
+      cfg.location ? el("span", { class: "loc" }, cfg.location) : null);
+  } else if (cfg.location) {
+    locNode = el("div", { class: "loc" }, cfg.location);
+  }
   return el("header", { class: "head" },
-    cfg.location ? el("div", { class: "loc" }, cfg.location) : null,
+    locNode,
     el("h1", { tabindex: "-1" }, cfg.title),   // цель фокуса при переходе на шаг
     cfg.intro ? el("p", { class: "intro" }, cfg.intro) : null
   );
@@ -26,7 +41,10 @@ function header(cfg) {
 
 function nav(ctx, { nextLabel, disabled, onNext } = {}) {
   const foot = el("footer", { class: "nav" });
-  if (ctx.screen !== "step0") {
+  // «Назад» в футере только там, где нет карты пути (финал, анкета). На шагах 1–5
+  // кнопка живёт в строке карты пути (app.js), на входном экране её нет.
+  const hasPathMap = ctx.content.pathMap.some((n) => n.step === ctx.screen);
+  if (ctx.screen !== "step0" && !hasPathMap) {
     foot.appendChild(el("button", { class: "ghost", onclick: () => ctx.back() }, "← Назад"));
   }
   foot.appendChild(el("button", {
@@ -72,8 +90,8 @@ function choiceRow(options, selected, onPick, extraClass = "") {
   return row;
 }
 
-function metric(label, value) {
-  return el("div", { class: "metric" },
+function metric(label, value, accent) {
+  return el("div", { class: "metric" + (accent ? " metric-accent" : "") },
     el("div", { class: "metric-value" }, value),
     el("div", { class: "metric-label" }, label)
   );
@@ -117,7 +135,7 @@ function step0(ctx) {
   const ownField = el("textarea", { class: "own-field", placeholder: t.ownFieldPlaceholder, "aria-label": t.ownFieldLabel });
   ownField.value = state.ownTaskText || "";
   ownField.addEventListener("input", () => { state.ownTaskText = ownField.value; ctx.update(); });
-  ownWrap.append(el("p", { class: "own-explain" }, t.ownExplain), ownField);
+  ownWrap.append(el("p", { class: "own-explain" }, t.ownExplain), ownField, el("p", { class: "warn" }, t.privacyWarning));
 
   // Четыре задачи сеткой два на два с иконками, своя задача — пунктирной
   // карточкой во всю ширину под ними.
@@ -178,83 +196,183 @@ function step0(ctx) {
   return wrap;
 }
 
-// ── Шаг 1. Гипотеза-заготовка ─────────────────────────────────
+// ── Шаг 1. Гипотеза: числовой режим и свободная ветка ─────────
+// Числовой режим: карточка с подставляемыми числами и три блока выбора
+// (результат, цель, выборка). Правка карандашом уводит в свободную ветку, где
+// вместо карточки поле ввода. Задача own — всегда свободная.
 function step1(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step1;
   const task = content.taskById[state.task];
   const h = state.hypothesis;
+  const tm = content.taskMetrics[state.task];
   const wrap = el("div");
-  wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
+  const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
 
-  // Предвыбираем дефолтные результат и способ проверки задачи, чтобы заготовка,
-  // превью и итоговая гипотеза собирались одним buildHypothesis.
-  if (!h.resultChoice) h.resultChoice = task.defaultResult;
-  if (!h.criterionChoice) h.criterionChoice = task.defaultCriterion;
+  // Задача own не имеет чисел — её ветка всегда свободная.
+  if (state.task === "own") h.freeform = true;
 
-  // Живое превью гипотезы: собирается из выбора результата и критерия,
-  // пока игрок не начал править текст руками (тогда правка ведёт превью).
-  const preview = el("p", { class: "formula" });
-  const editWrap = el("div", { class: "edit-wrap", style: h.edited ? "" : "display:none" });
-  const area = el("textarea", { class: "own-field big", maxlength: HYP_MAX, "aria-label": "Текст гипотезы" });
-  const charcount = el("div", { class: "charcount" });
-  const warn = el("p", { class: "warn" }, t.privacyWarning);
-  editWrap.append(area, charcount, warn);
-
-  function updateCharcount() {
-    const left = HYP_MAX - area.value.length;
-    charcount.textContent = left <= 40 ? tpl(content.system.charsLeftTemplate, { n: left }) : "";
+  // Числовые значения по умолчанию при первом входе (для задач с метриками).
+  if (tm) {
+    if (!h.resultChoice || !tm[h.resultChoice]) h.resultChoice = content.taskResultIds(state.task)[0];
+    if (!h.goalChoice || !tm[h.resultChoice].goals.some((g) => g.id === h.goalChoice)) h.goalChoice = tm[h.resultChoice].goals[0].id;
+    if (h.sampleSize == null) h.sampleSize = tm.samples[0];
   }
-  function syncPreview() {
-    if (!h.edited) {
-      h.finalText = buildHypothesis(state.task, h.resultChoice, h.criterionChoice, state.ownTaskText.trim());
-      area.value = h.finalText;
-    }
-    preview.textContent = h.finalText;
-    ctx.update();
-  }
-  // Признак правки текста фиксируем один раз, без самого текста в аналитике.
-  let editedTracked = false;
-  const trackEdited = () => { if (!editedTracked) { editedTracked = true; ctx.storage.track("hypothesis_edited", {}); } };
 
-  area.value = h.finalText || defaultHypothesis(state, task);
-  area.addEventListener("input", () => {
-    h.finalText = area.value; h.edited = true; ctx.update();
-    preview.textContent = h.finalText; updateCharcount(); trackEdited();
-  });
+  const head = header({ task: taskLabel, location: t.location, title: t.title, intro: t.intro });
+  const introP = head.querySelector(".intro");
+  wrap.appendChild(head);
+
+  const error = el("div", { class: "error", role: "alert" });
+
+  // Числовой блок: карточка + три выбора. Пересобирается целиком при выборе.
+  const numericHost = el("div");
+  // Свободный блок: поле ввода вместо карточки.
+  const freeHost = el("div");
+  const freeField = el("textarea", { class: "hyp-free", maxlength: HYP_MAX, placeholder: t.freePlaceholder, "aria-label": "Текст гипотезы" });
+  freeField.value = h.customText || "";
+  freeField.addEventListener("input", () => { h.customText = freeField.value; h.finalText = freeField.value; ctx.update(); error.textContent = ""; });
+  freeHost.append(el("div", { class: "legend" }, t.cardLabel), freeField);
+
+  const resetLink = el("button", { class: "linklike", onclick: onReset }, t.resetLink);
 
   function maybeTrackBuilt() {
-    if (h.resultChoice && h.criterionChoice)
-      ctx.storage.track("hypothesis_built", { result: h.resultChoice, criterion: h.criterionChoice });
+    ctx.storage.track("hypothesis_built", { result: h.resultChoice, goal: h.goalChoice, sample: h.sampleSize });
   }
-  const result = choiceRow(content.resultOptions, h.resultChoice,
-    (id) => { h.resultChoice = id; syncPreview(); maybeTrackBuilt(); });
-  const criterion = choiceRow(content.criterionOptions, h.criterionChoice,
-    (id) => { h.criterionChoice = id; syncPreview(); maybeTrackBuilt(); });
 
-  function openEdit(fromScratch) {
-    if (fromScratch) { area.value = ""; h.finalText = ""; }
-    else { area.value = h.finalText; }
-    h.edited = true; ctx.update(); trackEdited();
-    editWrap.style.display = "";
-    preview.textContent = h.finalText;
-    updateCharcount();
-    area.focus();
+  // Карточка гипотезы: обычный текст + подсвеченные фрагменты (цель, проверка),
+  // которыми игрок управляет. Действие приходит из задачи и остаётся обычным цветом.
+  function cardNode(changedSlot) {
+    const parts = buildHypothesisParts(state.task, h.resultChoice, h.goalChoice, h.sampleSize, state.ownTaskText.trim());
+    h.finalText = `Если ${parts.action}, то ${parts.goal}. ${parts.check}`;
+    const goalSlot = el("span", { class: "slot" + (changedSlot === "goal" ? " flash" : "") }, parts.goal);
+    const checkSlot = el("span", { class: "slot" + (changedSlot === "check" ? " flash" : "") }, parts.check);
+    const card = el("p", { class: "hyp-card" });
+    card.appendChild(document.createTextNode(`Если ${parts.action}, то `));
+    card.appendChild(goalSlot);
+    card.appendChild(document.createTextNode(". "));
+    card.appendChild(checkSlot);
+    const pencil = el("button", { class: "hyp-edit", type: "button", "aria-label": t.editAria });
+    pencil.innerHTML = PENCIL_SVG;
+    pencil.addEventListener("click", () => openModal(pencil));
+    card.appendChild(pencil);
+    return card;
   }
-  const refine = el("button", { class: "linklike", onclick: () => openEdit(false) }, t.refineLink);
-  const writeOwn = el("button", { class: "linklike", onclick: () => openEdit(true) }, t.writeOwnLink);
 
-  wrap.append(
-    preview,
-    fieldset(t.resultLegend, result),
-    fieldset(t.criterionLegend, criterion),
-    el("div", { class: "edit-actions" }, refine, writeOwn),
-    editWrap,
-    nav(ctx, { nextLabel: t.button })
-  );
-  syncPreview();
-  updateCharcount();
+  function paintNumeric(changedSlot) {
+    numericHost.innerHTML = "";
+    if (!tm) return;
+    numericHost.append(el("div", { class: "legend" }, t.cardLabel), cardNode(changedSlot));
+    // Результат: кнопки в порядке ключей taskMetrics. Смена сбрасывает цель на первую.
+    const resultIds = content.taskResultIds(state.task);
+    numericHost.appendChild(fieldset(t.resultLegend,
+      choiceRow(resultIds.map((id) => ({ id, label: tm[id].label })), h.resultChoice, (id) => {
+        h.resultChoice = id;
+        h.goalChoice = tm[id].goals[0].id;
+        ctx.update(); maybeTrackBuilt(); paintNumeric("goal");
+      })
+    ));
+    // Цель: под названием мелким текстом целевое значение (targetShort).
+    numericHost.appendChild(fieldset(tpl(t.goalLegendTemplate, { now: tm[h.resultChoice].now }),
+      goalRow(tm[h.resultChoice].goals, h.goalChoice, (id) => {
+        h.goalChoice = id; ctx.update(); maybeTrackBuilt(); paintNumeric("goal");
+      })
+    ));
+    // Выборка: подпись кнопки — число и единица.
+    numericHost.appendChild(fieldset(t.sampleLegend,
+      choiceRow(tm.samples.map((n) => ({ id: n, label: `${n} ${tm.sampleUnit}` })), h.sampleSize, (id) => {
+        h.sampleSize = id; ctx.update(); maybeTrackBuilt(); paintNumeric("check");
+      })
+    ));
+  }
+
+  function applyMode() {
+    const free = h.freeform;
+    numericHost.style.display = free ? "none" : "";
+    freeHost.style.display = free ? "" : "none";
+    resetLink.style.display = free && !!h.customText && state.task !== "own" ? "" : "none";
+    introP.textContent = free ? (h.customText ? t.introCustom : t.introFree) : t.intro;
+    if (free) freeField.value = h.customText || "";
+    else paintNumeric(null);
+  }
+
+  // Модальное окно правки: предзаполнено сгенерированной заготовкой, правка уводит
+  // в свободную ветку только если текст изменился.
+  function openModal(pencilEl) {
+    const seed = buildHypothesis(state.task, h.resultChoice, h.goalChoice, h.sampleSize, state.ownTaskText.trim());
+    const overlay = el("div", { class: "modal-overlay" });
+    const panel = el("div", { class: "modal-panel", role: "dialog", "aria-modal": "true", "aria-label": t.modalTitle });
+    const ta = el("textarea", { class: "hyp-free modal-field", maxlength: HYP_MAX, "aria-label": t.modalTitle });
+    ta.value = seed;
+    const counter = el("div", { class: "charcount" });
+    const updateCounter = () => {
+      const left = HYP_MAX - ta.value.length;
+      counter.textContent = left <= 40 ? tpl(content.system.charsLeftTemplate, { n: left }) : "";
+    };
+    ta.addEventListener("input", updateCounter);
+
+    const close = () => { document.removeEventListener("keydown", onKey); overlay.remove(); if (pencilEl) pencilEl.focus(); };
+    const save = () => {
+      const text = ta.value.trim();
+      if (!text || text === seed.trim()) { close(); return; } // не отличается — остаёмся в числовом режиме
+      h.customText = text; h.finalText = text; h.freeform = true;
+      ctx.update(); ctx.storage.track("hypothesis_custom_saved", {});
+      close(); applyMode();
+    };
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "Tab") trapTab(e, panel);
+    }
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+    document.addEventListener("keydown", onKey);
+
+    panel.append(
+      el("h2", { class: "modal-title" }, t.modalTitle),
+      el("p", { class: "modal-intro" }, t.modalIntro),
+      ta, counter,
+      el("div", { class: "modal-actions" },
+        el("button", { class: "ghost", type: "button", onclick: close }, t.modalCancel),
+        el("button", { class: "primary", type: "button", onclick: save }, t.modalSave)
+      )
+    );
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    updateCounter();
+    ta.focus(); ta.select();
+  }
+
+  function onReset() {
+    h.freeform = false; h.customText = "";
+    ctx.update(); ctx.storage.track("hypothesis_reset", {});
+    error.textContent = "";
+    applyMode();
+  }
+
+  function onNext() {
+    if (h.freeform && !(h.customText || "").trim()) { error.textContent = t.emptyError; freeField.focus(); return; }
+    ctx.next();
+  }
+
+  wrap.append(numericHost, freeHost, resetLink, error, nav(ctx, { nextLabel: t.button, onNext }));
+  applyMode();
   return wrap;
+}
+
+// Блок выбора цели: название плюс мелкой строкой целевое значение.
+function goalRow(goals, selected, onPick) {
+  const row = el("div", { class: "choices" });
+  for (const g of goals) {
+    row.appendChild(el("button", {
+      type: "button",
+      class: "choice goal-choice" + (selected === g.id ? " selected" : ""),
+      "aria-pressed": selected === g.id ? "true" : "false",
+      onclick: () => onPick(g.id)
+    },
+      el("span", { class: "goal-name" }, g.label),
+      el("span", { class: "goal-sub" }, g.targetShort)
+    ));
+  }
+  return row;
 }
 
 // ── Шаг 2. Инструменты вокруг бюджета: выбрать до трёх ─────────
@@ -603,28 +721,35 @@ function step4(ctx) {
 }
 
 // ── Шаг 5. Наблюдение и решение ───────────────────────────────
+// Ветка выбирается по признаку свободной формулировки: числовая показывает
+// плитки и три решения, свободная — выбор наблюдения и строку последствия.
 function step5(ctx) {
+  const { content, state } = ctx;
+  const task = content.taskById[state.task];
+  const wrap = el("div");
+  const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
+  return state.hypothesis.freeform ? step5Free(ctx, wrap, taskLabel) : step5Numeric(ctx, wrap, taskLabel);
+}
+
+function step5Numeric(ctx, wrap, taskLabel) {
   const { content, state } = ctx;
   const t = content.ui.step5;
   const task = content.taskById[state.task];
-  const wrap = el("div");
-  wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
+  const h = state.hypothesis;
+  wrap.appendChild(header({ task: taskLabel, location: t.location, title: t.title, intro: t.intro }));
 
-  // Показатели связаны со способом проверки, выбранным на шаге 1.
-  const critId = state.hypothesis.criterionChoice;
-  const crit = content.criterionOptions.find((c) => c.id === critId);
-  if (crit) {
-    wrap.appendChild(el("div", { class: "field" },
-      el("div", { class: "legend" }, t.criterionCaption),
-      el("p", { class: "reco-line" }, crit.phrase)
-    ));
-  }
+  // Плитки из чисел задачи и выбора шага 1: было / стало / проверено. «Стало» подсвечено.
+  const tm = content.taskMetrics[state.task];
+  const m = tm[h.resultChoice] || tm[content.taskResultIds(state.task)[0]];
+  const goal = m.goals.find((g) => g.id === h.goalChoice) || m.goals[0];
 
-  const tiles = content.criterionMetrics[critId] || content.criterionMetrics.errors2w;
-  const metricsBox = el("div", { class: "metrics" });
-  metricsBox.style.gridTemplateColumns = `repeat(${tiles.length}, 1fr)`;
-  for (const tile of tiles) metricsBox.appendChild(metric(tile.label, tile.value));
-  wrap.appendChild(metricsBox);
+  wrap.appendChild(el("div", { class: "legend" }, t.metricsLabel));
+  wrap.appendChild(el("div", { class: "metrics" },
+    metric(t.tileWas, m.nowShort),
+    metric(t.tileNow, goal.actual, true),
+    metric(t.tileSample, `${h.sampleSize} ${tm.sampleUnit}`)
+  ));
+  wrap.appendChild(el("p", { class: "goal-line" }, tpl(t.goalLineTemplate, { target: goal.targetShort })));
 
   // После «Доработать» показываем другую по природе поломку, чтобы доработка
   // на шаге 3 не обесценивалась.
@@ -649,9 +774,54 @@ function step5(ctx) {
   );
 
   const hints = el("ul", { class: "hints" });
-  for (const h of t.hints) hints.appendChild(el("li", {}, h));
+  for (const hh of t.hints) hints.appendChild(el("li", {}, hh));
 
   wrap.append(fieldset(t.question, choice), consequence, hints, foot);
+  return wrap;
+}
+
+// Свободная ветка: чисел не было. Игрок называет, за чем будет следить; блока
+// «что делаешь» и трёх решений нет, финал уходит в вариант watch.
+function step5Free(ctx, wrap, taskLabel) {
+  const { content, state } = ctx;
+  const t = content.ui.step5;
+  wrap.appendChild(header({ task: taskLabel, location: t.location, title: t.titleFree, intro: t.introFree }));
+
+  if (!state.step5Watch) state.step5Watch = content.watchOptions[0].id;
+  state.finalVariant = "watch";    // свободная ветка всегда ведёт в наблюдение
+  state.step5Choice = null;
+  ctx.update();
+
+  const consequence = el("p", { class: "consequence", "aria-live": "polite" });
+  const ownField = el("input", {
+    class: "text-field watch-own", type: "text", maxlength: WATCH_OWN_MAX,
+    placeholder: t.watchOwnPlaceholder, "aria-label": t.watchOwnPlaceholder
+  });
+  ownField.value = state.step5WatchOwn || "";
+  const ownWrap = el("div", { class: "watch-own-wrap", style: "display:none" }, ownField);
+
+  const updateConsequence = () => { consequence.textContent = tpl(t.watchConsequenceTemplate, { what: content.watchWhat(state) }); };
+  const updateOwn = () => { ownWrap.style.display = state.step5Watch === "own" ? "" : "none"; };
+  ownField.addEventListener("input", () => { state.step5WatchOwn = ownField.value; ctx.update(); updateConsequence(); });
+
+  const choice = choiceRow(
+    content.watchOptions.map((o) => ({ id: o.id, label: o.short })),
+    state.step5Watch,
+    (id) => { state.step5Watch = id; ctx.update(); updateOwn(); updateConsequence(); ctx.storage.track("watch_chosen", { watch: id }); }
+  );
+
+  const hints = el("ul", { class: "hints" });
+  for (const hh of t.hints) hints.appendChild(el("li", {}, hh));
+
+  wrap.append(
+    fieldset(t.watchQuestion, choice),
+    ownWrap,
+    consequence,
+    hints,
+    nav(ctx, { nextLabel: t.button })   // вариант предвыбран, кнопка активна
+  );
+  updateOwn();
+  updateConsequence();
   return wrap;
 }
 
@@ -671,28 +841,32 @@ function final(ctx) {
     ? tpl(v.cardTitleNamedTemplate, { name: state.name, task: taskLabel })
     : tpl(v.cardTitleTemplate, { task: taskLabel });
 
+  const isWatch = key === "watch";
   const toolNames = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
     .map((id) => content.toolById[id]?.name).filter(Boolean);
   const launchNote = state.step3Choice ? task.check?.[state.step3Choice]?.launch : null;
   const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
-  const crit = content.criterionOptions.find((c) => c.id === state.hypothesis.criterionChoice);
-  const decisionLabel = f.decisionLabels[key];
+  // Строка проверки: в свободной ветке — что игрок наблюдает; в числовой — размер выборки.
+  const checkNote = isWatch
+    ? `смотрю ${content.watchWhat(state)}, вернусь через две недели`
+    : buildHypothesisParts(state.task, state.hypothesis.resultChoice, state.hypothesis.goalChoice, state.hypothesis.sampleSize, state.ownTaskText.trim()).check;
   // Подпись карточки ветвится по приоритету: остановка → есть «чего не хватило» → обычная.
   const cardFooterText = state.step5Choice === "stop" ? f.cardFooterStop
     : (state.tools.gaps.length ? f.cardFooterGaps : f.cardFooter);
 
-  // Итоговая карточка: весь путь одним взглядом, для игрока и стендиста.
+  // Итоговая карточка: весь путь одним взглядом, для игрока и стендиста. В свободной
+  // ветке итога проверки и решения ещё нет — эти строки не выводим.
   const kv = (label, value) =>
     value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
   wrap.appendChild(el("div", { class: "final-card" },
     el("h1", { class: "card-title", tabindex: "-1" }, title),
-    kv(f.cardHypothesisLabel, state.hypothesis.finalText || defaultHypothesis(state, task)),
+    kv(f.cardHypothesisLabel, content.hypothesisText(state)),
     kv(f.cardToolsLabel, toolNames.join(", ")),
     kv(f.cardLaunchLabel, launchNote),
     kv(f.cardChannelLabel, channelName),
-    kv(f.cardCheckLabel, crit ? crit.phrase : null),
-    kv(f.cardResultLabel, v.resultShort),
-    kv(f.cardDecisionLabel, decisionLabel),
+    kv(f.cardCheckLabel, checkNote),
+    isWatch ? null : kv(f.cardResultLabel, v.resultShort),
+    isWatch ? null : kv(f.cardDecisionLabel, f.decisionLabels[key]),
     el("div", { class: "muted" }, cardFooterText)
   ));
 

@@ -128,16 +128,18 @@ export const resultOptions = [
   { id: "faster",  label: "Ускорим ответ клиенту",                   phrase: "ускорим ответ клиенту" }
 ];
 
-// Шаг 1: способ проверки (выбор одного) — criterionChoice.
-// phrase идёт в гипотезу; по этому же выбору строится экран метрик (шаг 5).
-export const criterionOptions = [
-  { id: "time20",   label: "Сравним время на двадцати случаях до и после",   phrase: "Проверим на двадцати случаях: сравним время до и после." },
-  { id: "errors2w", label: "Посчитаем долю ошибок за две недели",            phrase: "Проверим за две недели: посчитаем долю ошибок." },
-  { id: "nohuman",  label: "Посмотрим, сколько случаев прошло без человека", phrase: "Проверим, сколько случаев прошло без человека." },
-  { id: "ask",      label: "Спросим команду, стало ли легче",               phrase: "Проверим опросом команды: стало ли легче." }
+// Свободная ветка (шаг 5): за чем игрок будет следить, если пишет гипотезу
+// своими словами. Раньше это был criterionOptions (способ проверки в гипотезе),
+// теперь числа задаёт числовой режим, а этот список нужен только свободной ветке.
+export const watchOptions = [
+  { id: "time20",   short: "Время на случай",     watchPhrase: "время на один случай" },
+  { id: "errors2w", short: "Доля ошибок",         watchPhrase: "долю ошибок" },
+  { id: "nohuman",  short: "Случаи без человека", watchPhrase: "долю случаев без человека" },
+  { id: "ask",      short: "Отзывы команды",      watchPhrase: "оценку команды" },
+  { id: "own",      short: "Своё",                watchPhrase: "" }
 ];
 
-// Шаг 1: сборка гипотезы «Если [действие задачи], то [результат]. [проверка].»
+// Шаг 1: действие в гипотезе «Если [действие задачи], то [цель]. [проверка].»
 export const taskAction = {
   documents: "автоматизируем извлечение полей из документов",
   requests:  "поставим ассистента на разбор заявок",
@@ -146,12 +148,151 @@ export const taskAction = {
   own:       "внедрим решение под задачу «{ownTaskText}»"
 };
 
-export function buildHypothesis(taskId, resultId, criterionId, ownTaskText = "") {
-  let action = taskAction[taskId] || "внедрим решение";
-  action = action.replace("{ownTaskText}", ownTaskText);
-  const goal = resultOptions.find((o) => o.id === resultId)?.phrase || "получим измеримый результат";
-  const crit = criterionOptions.find((o) => o.id === criterionId)?.phrase || "Проверим результат на реальных случаях.";
-  return `Если ${action}, то ${goal}. ${crit}`;
+// Шаг 1 (числовой режим): у каждой задачи свои результаты, у результата свои цели
+// с текущим значением, целью и фактом пилота. Порядок ключей задаёт порядок кнопок,
+// первый ключ выбран по умолчанию. Факт всегда хуже цели намеренно: иначе выбор
+// «исправить/масштабировать» на шаге 5 стал бы очевиден. У задачи own записи нет —
+// её ветка всегда свободная. Числа черновые, копирайт проверяет дизайнер. VERIFY:metrics
+export const taskMetrics = {
+  documents: {
+    time: {
+      label: "Сократим время", now: "9 минут на документ", nowShort: "9 мин",
+      phrase: "сократим обработку документа с 9 до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "5 минут", targetShort: "5 мин", actual: "6 мин" },
+        { id: "x3", label: "Втрое быстрее", target: "3 минуты", targetShort: "3 мин", actual: "5 мин" }
+      ]
+    },
+    errors: {
+      label: "Снизим ошибки", now: "18% документов с ошибкой", nowShort: "18%",
+      phrase: "снизим долю ошибок с 18% до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое меньше", target: "9%", targetShort: "9%", actual: "11%" },
+        { id: "x3", label: "Втрое меньше", target: "6%", targetShort: "6%", actual: "9%" }
+      ]
+    },
+    more: {
+      label: "Успеем больше", now: "60 документов в день", nowShort: "60",
+      phrase: "поднимем выработку с 60 до {target} в день",
+      goals: [
+        { id: "x2", label: "Вдвое больше", target: "120 документов", targetShort: "120", actual: "95" },
+        { id: "x3", label: "Втрое больше", target: "180 документов", targetShort: "180", actual: "130" }
+      ]
+    },
+    samples: [20, 60, 120], sampleUnit: "документах"
+  },
+  requests: {
+    more: {
+      label: "Успеем больше", now: "200 обращений в день", nowShort: "200",
+      phrase: "поднимем разбор с 200 до {target} в день",
+      goals: [
+        { id: "x2", label: "Вдвое больше", target: "400 обращений", targetShort: "400", actual: "320" },
+        { id: "x3", label: "Втрое больше", target: "600 обращений", targetShort: "600", actual: "430" }
+      ]
+    },
+    time: {
+      label: "Сократим время", now: "6 минут на обращение", nowShort: "6 мин",
+      phrase: "сократим разбор обращения с 6 до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "3 минуты", targetShort: "3 мин", actual: "4 мин" },
+        { id: "x3", label: "Втрое быстрее", target: "2 минуты", targetShort: "2 мин", actual: "3 мин" }
+      ]
+    },
+    faster: {
+      label: "Ответим быстрее", now: "ответ за 4 часа", nowShort: "4 ч",
+      phrase: "ускорим ответ с 4 часов до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "2 часа", targetShort: "2 ч", actual: "3 ч" },
+        { id: "x3", label: "Втрое быстрее", target: "1 час", targetShort: "1 ч", actual: "2 ч" }
+      ]
+    },
+    samples: [50, 150, 300], sampleUnit: "обращениях"
+  },
+  news: {
+    time: {
+      label: "Сократим время", now: "3 часа в неделю на чтение", nowShort: "3 ч",
+      phrase: "сократим чтение с 3 часов в неделю до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "1,5 часа", targetShort: "1,5 ч", actual: "2 ч" },
+        { id: "x3", label: "Втрое быстрее", target: "1 час", targetShort: "1 ч", actual: "1,5 ч" }
+      ]
+    },
+    more: {
+      label: "Успеем больше", now: "30 источников", nowShort: "30",
+      phrase: "расширим охват с 30 до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое больше", target: "60 источников", targetShort: "60", actual: "48" },
+        { id: "x3", label: "Втрое больше", target: "90 источников", targetShort: "90", actual: "65" }
+      ]
+    },
+    faster: {
+      label: "Узнаем раньше", now: "узнаём об изменении за 5 дней", nowShort: "5 дней",
+      phrase: "сократим задержку с 5 дней до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "2 дня", targetShort: "2 дня", actual: "3 дня" },
+        { id: "x3", label: "Втрое быстрее", target: "1 день", targetShort: "1 день", actual: "2 дня" }
+      ]
+    },
+    samples: [10, 30, 60], sampleUnit: "материалах"
+  },
+  contract: {
+    errors: {
+      label: "Снизим ошибки", now: "12% расхождений пропускаем", nowShort: "12%",
+      phrase: "снизим пропуски с 12% до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое меньше", target: "6%", targetShort: "6%", actual: "8%" },
+        { id: "x3", label: "Втрое меньше", target: "4%", targetShort: "4%", actual: "6%" }
+      ]
+    },
+    time: {
+      label: "Сократим время", now: "40 минут на договор", nowShort: "40 мин",
+      phrase: "сократим сверку договора с 40 до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "20 минут", targetShort: "20 мин", actual: "26 мин" },
+        { id: "x3", label: "Втрое быстрее", target: "13 минут", targetShort: "13 мин", actual: "19 мин" }
+      ]
+    },
+    faster: {
+      label: "Проверим быстрее", now: "проверка за 2 дня", nowShort: "2 дня",
+      phrase: "ускорим проверку с 2 дней до {target}",
+      goals: [
+        { id: "x2", label: "Вдвое быстрее", target: "1 день", targetShort: "1 день", actual: "1,5 дня" },
+        { id: "x3", label: "Втрое быстрее", target: "4 часа", targetShort: "4 ч", actual: "1 день" }
+      ]
+    },
+    samples: [10, 30, 60], sampleUnit: "договорах"
+  }
+};
+
+// Список результатов задачи в порядке кнопок (без служебных ключей samples/sampleUnit).
+export function taskResultIds(taskId) {
+  return Object.keys(taskMetrics[taskId] || {}).filter((k) => k !== "samples" && k !== "sampleUnit");
+}
+
+// Числовые значения по умолчанию: первый результат, первая цель, первая выборка.
+export function metricDefaults(taskId) {
+  const tm = taskMetrics[taskId];
+  if (!tm) return null;
+  const resultId = taskResultIds(taskId)[0];
+  return { resultId, goalId: tm[resultId].goals[0].id, sampleSize: tm.samples[0] };
+}
+
+// Части гипотезы, чтобы экран мог подсветить подставляемые фрагменты.
+export function buildHypothesisParts(taskId, resultId, goalId, sampleSize, ownTaskText = "") {
+  const action = (taskAction[taskId] || "внедрим решение").replace("{ownTaskText}", ownTaskText);
+  const m = taskMetrics[taskId]?.[resultId];
+  const goal = m?.goals.find((g) => g.id === goalId) || m?.goals[0];
+  const unit = taskMetrics[taskId]?.sampleUnit || "случаях";
+  return {
+    action,
+    goal: m ? m.phrase.replace("{target}", goal.target) : "получим измеримый результат",
+    check: `Проверим на ${sampleSize} ${unit}.`
+  };
+}
+
+export function buildHypothesis(taskId, resultId, goalId, sampleSize, ownTaskText = "") {
+  const p = buildHypothesisParts(taskId, resultId, goalId, sampleSize, ownTaskText);
+  return `Если ${p.action}, то ${p.goal}. ${p.check}`;
 }
 
 // Шаг 2: десять инструментов платформы. Выбрать можно три.
@@ -277,33 +418,6 @@ export const taskChannels = {
   own:       { reco: ["widget", "api", "chat", "background"], text: "Под такую задачу подойдёт любой из каналов, выбирай по тому, где решение встретит пользователя." }
 };
 
-// Шаг 5: показатели под выбранный на шаге 1 способ проверки (criterionChoice).
-// Значения игровые, но их логика соответствует критерию. Цифры сведены вокруг
-// 312 проверок и ~18% проблемных случаев, чтобы сходиться с сигналом задачи.
-// VERIFY:metrics
-export const criterionMetrics = {
-  time20: [
-    { label: "Время до, на случай", value: "9 мин" },
-    { label: "Время после", value: "3 мин" },
-    { label: "Размер выборки", value: "60" }
-  ],
-  errors2w: [
-    { label: "Доля ошибок", value: "18%" },
-    { label: "Проблемных случаев", value: "56" },
-    { label: "Проверено за две недели", value: "312" }
-  ],
-  nohuman: [
-    { label: "Прошло без человека", value: "82%" },
-    { label: "Ручных вмешательств", value: "56" },
-    { label: "Обработано", value: "312" }
-  ],
-  ask: [
-    { label: "Оценка удобства", value: "7 из 10" },
-    { label: "Жалоб за две недели", value: "9" },
-    { label: "Ручных исправлений", value: "56" }
-  ]
-};
-
 // Шаг 5: последствия решения — step5Choice. Каждое опирается на показанный сигнал.
 export const step5Consequence = {
   fix:   "Дорабатываем проблемный тип из сигнала выше, и доля падает. Через две недели повторяем ту же проверку и сравниваем цифры.",
@@ -329,6 +443,7 @@ export const ui = {
     ownFieldLabel: "Что за задача",
     ownFieldPlaceholder: "например, свести данные из трёх систем в один отчёт",
     ownExplain: "Запишем её сейчас, общий маршрут покажем в игре, а подробный разбор продолжим со стендистом.",
+    privacyWarning: "Не вписывай сюда данные клиентов и персональные данные. Тексты мы читаем.",
     awarenessQuestion: "Знаешь, с чего начать такой пилот?",
     awarenessYes: "Да",
     awarenessNo: "Нет",
@@ -337,16 +452,24 @@ export const ui = {
     button: "Запустить пилот →"
   },
   step1: {
-    location: "ММ-канал ии-в-бизнесе",
+    location: "ии-в-бизнесе",
     title: "Сначала гипотеза",
-    intro: "Гипотеза нужна, чтобы через полгода было с чем сравнить результат. Без неё любой пилот заканчивается успешно. Заготовку под твою задачу мы уже написали, поправь под себя или оставь как есть.",
-    formulaPreview: "Если [сделаем это], то [получим это]. [Проверим так].",
+    intro: "Собери измеримую гипотезу для пилота.",
+    introFree: "Опиши гипотезу своими словами, разберём на стенде.",
+    introCustom: "Разберём твою формулировку на стенде.",
+    cardLabel: "Гипотеза",
     resultLegend: "Ожидаемый результат",
-    criterionLegend: "Способ проверки",
-    refineLink: "Уточнить формулировку",
-    writeOwnLink: "Напишу своё с нуля",
-    privacyWarning: "Не вписывай сюда данные клиентов и персональные данные. Тексты мы читаем.",
-    button: "Дальше: инструменты →"
+    goalLegendTemplate: "Цель, сейчас {now}",
+    sampleLegend: "Проверим на",
+    editAria: "Написать свою формулировку",
+    resetLink: "Вернуть заготовку",
+    freePlaceholder: "Если внедрим решение под мою задачу, то ... . Проверим ...",
+    modalTitle: "Своя формулировка",
+    modalIntro: "Если заготовка не про твой случай, перепиши её целиком.",
+    modalCancel: "Отмена",
+    modalSave: "Сохранить",
+    emptyError: "Напиши гипотезу, хотя бы одной строкой",
+    button: "Выбрать инструменты →"
   },
   step2: {
     location: "ИИ Платформа, ai.kontur.host",
@@ -391,9 +514,18 @@ export const ui = {
   },
   step5: {
     location: "LangFuse",
-    title: "Смотри, что происходит",
-    intro: "Пилот живёт две недели. Вот что видно в данных за это время.",
-    criterionCaption: "Способ проверки из гипотезы",
+    title: "Прошло две недели",
+    intro: "Смотри, что показал пилот, и решай, что с ним делать.",
+    titleFree: "За чем будешь следить",
+    introFree: "Пилот работает. Через две недели ты вернёшься к нему с этой цифрой.",
+    metricsLabel: "Что показал пилот",
+    tileWas: "Было",
+    tileNow: "Стало",
+    tileSample: "Проверено",
+    goalLineTemplate: "Цель была {target}, до неё не дотянули.",
+    watchQuestion: "Числа мы не собирали: критерий ты описал словами. Назови, за чем будешь следить.",
+    watchOwnPlaceholder: "например, сколько заявок прошло без правок",
+    watchConsequenceTemplate: "Через две недели сравниваешь {what} до и после. Без этой цифры пилот нельзя ни закрыть, ни продлить: спорить будете мнениями.",
     question: "Что делаешь?",
     fixLabel: "Исправить",
     scaleLabel: "Масштабировать",
@@ -432,9 +564,22 @@ export const final = {
       resultShort: "решили не разворачивать",
       congrats: "Проверка завершена, пилот остановлен. Команда решила не разворачивать решение в текущих условиях и сохранила ресурсы, а по проверке видно, на что оно уже годится и чего пока не закрывает.",
       nextSteps: ["Записать вывод в вики", "Разобрать вариант без ИИ", "Принести другую гипотезу"]
+    },
+    // Свободная ветка: гипотеза словами, чисел ещё нет — пилот ушёл в наблюдение.
+    watch: {
+      cardTitleTemplate: "Пилот под задачу «{task}» ушёл в наблюдение",
+      cardTitleNamedTemplate: "{name}, пилот под задачу «{task}» ушёл в наблюдение",
+      resultShort: "пилот в наблюдении",
+      congrats: "Пилот работает, критерий назван. Через две недели вернись к этой цифре и сравни: без неё разговор о продлении будет спором мнений.",
+      nextSteps: [
+        "Назначить, кто посмотрит цифру",
+        "Вернуться к ней через две недели",
+        "Принести гипотезу в ии-в-бизнесе"
+      ]
     }
   },
-  decisionLabels: { fix: "Исправить", scale: "Масштабировать", stop: "Остановить" },
+  decisionLabels: { fix: "Исправить", scale: "Масштабировать", stop: "Остановить", watch: "наблюдаю за цифрой" },
+  cardWatchLabel: "Смотрю",
   cardHypothesisLabel: "Гипотеза",
   cardToolsLabel: "Инструменты",
   cardLaunchLabel: "Режим запуска",
@@ -514,10 +659,10 @@ export const system = {
 //    отдельно не хранится, а выводится из признака edited и finalText.
 // ─────────────────────────────────────────────────────────────
 // Версия структуры состояния. При несовпадении старое сохранение не восстанавливаем.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.6.12";
+export const GAME_VERSION = "0.7.0";
 
 export function createInitialState() {
   const now = Date.now();
@@ -532,9 +677,11 @@ export function createInitialState() {
     name: "",            // не используется в интерфейсе, оставлено для совместимости
     hypothesis: {
       finalText: "",       // итоговый текст гипотезы
-      edited: false,       // признак содержательного редактирования
-      resultChoice: null,  // id из resultOptions (на шаге 1 предвыбирается дефолт задачи)
-      criterionChoice: null // id из criterionOptions (предвыбирается дефолт задачи)
+      freeform: false,     // свободная формулировка: числа не используются
+      customText: "",      // текст, написанный руками (пусто в числовом режиме)
+      resultChoice: null,  // id результата из taskMetrics[task] (предвыбран первый)
+      goalChoice: null,    // "x2" | "x3" (предвыбрана первая цель результата)
+      sampleSize: null     // число из samples задачи (предвыбрана первая)
     },
     tools: {
       selected: [],      // до трёх id из tools
@@ -542,8 +689,10 @@ export function createInitialState() {
     },
     step3Choice: null,   // "enough" | "refine"
     publishChannel: null, // выбранный канал публикации (шаг 4)
-    step5Choice: null,   // "fix" | "scale" | "stop"
-    finalVariant: null,  // вычисляется из step5Choice
+    step5Choice: null,   // "fix" | "scale" | "stop" (в свободной ветке не заполняется)
+    step5Watch: null,    // id из watchOptions — обязательное в свободной ветке
+    step5WatchOwn: "",   // текст, если выбрано "own"
+    finalVariant: null,  // вычисляется из step5Choice, в свободной ветке "watch"
     awarenessAfter: null, // ответ на финале: "yes" | "no"
     nextStepText: "",    // необязательно
     contact: "",         // необязательно
@@ -558,11 +707,13 @@ export function createInitialState() {
 // Сброс данных, зависящих от выбранной задачи. Вызывается при смене задачи,
 // чтобы новая ветка не наследовала гипотезу, инструменты и решения старой.
 export function resetDependentOnTask(state) {
-  state.hypothesis = { finalText: "", edited: false, resultChoice: null, criterionChoice: null };
+  state.hypothesis = { finalText: "", freeform: false, customText: "", resultChoice: null, goalChoice: null, sampleSize: null };
   state.tools = { selected: [], gaps: [] };
   state.step3Choice = null;
   state.publishChannel = null;
   state.step5Choice = null;
+  state.step5Watch = null;
+  state.step5WatchOwn = "";
   state.finalVariant = null;
   state.awarenessAfter = null;
   state.nextStepText = "";
@@ -591,11 +742,22 @@ export const pathMap = [
 // Короткая сводка прохождения для формы: человекочитаемые названия выборов и
 // ответы анкеты. Контакт сюда не кладём — он идёт отдельной строкой (kind=contact).
 export function buildSummary(state, answers = []) {
+  const h = state.hypothesis;
   const toolNames = (state.tools.selected.length ? state.tools.selected : [])
     .map((id) => toolById[id]?.name).filter(Boolean);
   const gaps = state.tools.gaps
     .map((id) => gapOptions.find((g) => g.id === id)?.label).filter(Boolean);
-  const crit = criterionOptions.find((c) => c.id === state.hypothesis.criterionChoice);
+  // Критерий: в свободной ветке — что игрок назвал для наблюдения; в числовой — цель и выборка.
+  let criterion = "";
+  if (h.freeform) {
+    criterion = state.step5Watch === "own"
+      ? (state.step5WatchOwn || "").trim()
+      : (watchOptions.find((w) => w.id === state.step5Watch)?.short || "");
+  } else {
+    const m = taskMetrics[state.task]?.[h.resultChoice];
+    const goal = m?.goals.find((g) => g.id === h.goalChoice);
+    if (goal) criterion = `${goal.targetShort} на ${h.sampleSize} ${taskMetrics[state.task]?.sampleUnit || "случаях"}`;
+  }
   return {
     sessionId: state.runId,
     task: state.task,
@@ -604,7 +766,7 @@ export function buildSummary(state, answers = []) {
     awarenessAfter: state.awarenessAfter || "",
     tools: toolNames.join(", "),
     channel: state.publishChannel ? (channelById[state.publishChannel]?.name || "") : "",
-    criterion: crit ? crit.label : "",
+    criterion,
     gaps: gaps.join(", "),
     answer1: answers[0] || "",
     answer2: answers[1] || "",
@@ -623,23 +785,41 @@ function lowerFirst(s) {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
+// Итоговый текст гипотезы: в свободной ветке — свой текст, в числовом режиме —
+// собирается из выбранных результата, цели и выборки (с дефолтами, если пусто).
+export function hypothesisText(state) {
+  const h = state.hypothesis;
+  if (h.freeform) return (h.customText || h.finalText || "").trim();
+  if (!taskById[state.task]) return h.finalText || "";
+  const d = metricDefaults(state.task);
+  return buildHypothesis(
+    state.task,
+    h.resultChoice || d?.resultId,
+    h.goalChoice || d?.goalId,
+    h.sampleSize ?? d?.sampleSize,
+    state.ownTaskText.trim()
+  );
+}
+
+// За чем игрок будет следить в свободной ветке: фраза для строки последствия и карточки.
+export function watchWhat(state) {
+  if (state.step5Watch === "own") return (state.step5WatchOwn || "").trim() || "то, что ты назвал";
+  return watchOptions.find((w) => w.id === state.step5Watch)?.watchPhrase || "то, что ты назвал";
+}
+
 // Собранная карточка пилота для буфера обмена (правка «Унести гипотезу с собой»).
-// Только из имеющегося состояния, без новых полей. Имя игрока не включаем: текст
-// человек отправляет себе или руководителю. Ник дежурного и ссылки — из final.
+// Только из имеющегося состояния. Имя игрока не включаем: текст человек отправляет
+// себе или руководителю. Ник дежурного и ссылки — из final.
 export function buildShareText(state) {
   const task = taskById[state.task];
   if (!task) return "";
   const label = taskLabelOf(state, task);
-  const hyp = state.hypothesis.finalText || buildHypothesis(
-    state.task,
-    state.hypothesis.resultChoice || task.defaultResult,
-    state.hypothesis.criterionChoice || task.defaultCriterion,
-    state.ownTaskText.trim()
-  );
+  const hyp = hypothesisText(state);
   const toolNames = (state.tools.selected.length ? state.tools.selected : (taskTools[state.task]?.reco || []))
     .map((id) => toolById[id]?.name).filter(Boolean);
   const channel = state.publishChannel ? channelById[state.publishChannel]?.name : null;
   const key = state.finalVariant || state.step5Choice;
+  const isWatch = key === "watch";
   const resultShort = key ? final.variants[key]?.resultShort : null;
   const decision = key ? final.decisionLabels[key] : null;
 
@@ -647,8 +827,13 @@ export function buildShareText(state) {
   lines.push(`${final.cardHypothesisLabel}: ${hyp}`, "");
   if (toolNames.length) lines.push(`${final.cardToolsLabel}: ${toolNames.join(", ")}`);
   if (channel) lines.push(`${final.cardChannelLabel}: ${lowerFirst(channel)}`);
-  if (resultShort) lines.push(`${final.cardResultLabel}: ${resultShort}`);
-  if (decision) lines.push(`${final.cardDecisionLabel}: ${lowerFirst(decision)}`);
+  // В свободной ветке итога и решения ещё нет — вместо них строка наблюдения.
+  if (isWatch) {
+    lines.push(`${final.cardWatchLabel}: ${watchWhat(state)}, вернусь через две недели`);
+  } else {
+    if (resultShort) lines.push(`${final.cardResultLabel}: ${resultShort}`);
+    if (decision) lines.push(`${final.cardDecisionLabel}: ${lowerFirst(decision)}`);
+  }
   lines.push("", final.shareNextStep.replace("{duty}", final.dutyNick), final.shareToolsLine);
   return lines.join("\n");
 }
@@ -661,10 +846,11 @@ export const channelById = Object.fromEntries(channels.map((c) => [c.id, c]));
 // Единый объект контента, если удобнее импортировать одним куском.
 export const content = {
   tasks, taskById,
-  resultOptions, criterionOptions, taskAction, buildHypothesis, buildSummary, buildShareText,
+  resultOptions, watchOptions, taskAction, taskMetrics, taskResultIds, metricDefaults,
+  buildHypothesis, buildHypothesisParts, buildSummary, buildShareText, hypothesisText, watchWhat,
   tools, toolById, taskTools, gapOptions,
   channels, channelById, taskChannels,
-  step3Consequence, taskAbilities, pilotGaps, criterionMetrics, step5Consequence,
+  step3Consequence, taskAbilities, pilotGaps, step5Consequence,
   ui, final, anketa, system, flow, pathMap
 };
 
