@@ -192,7 +192,7 @@ function step0(ctx) {
 
   function openOwnModal(returnFocusTo) {
     openTextModal({
-      title: t.ownModalTitle, intro: t.ownExplain, warn: t.privacyWarning,
+      title: t.ownModalTitle, intro: t.ownExplain,
       value: state.ownTaskText || "", placeholder: t.ownFieldPlaceholder, maxlength: 160,
       counterTemplate: content.system.charsLeftTemplate,
       cancelLabel: t.modalCancel, saveLabel: t.modalSave, returnFocusTo,
