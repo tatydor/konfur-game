@@ -567,16 +567,16 @@ button.restart { display: block; margin: 24px auto 0; }
 .hyp-edit svg { width: 18px; height: 18px; }
 .hyp-edit:hover { color: var(--accent); background: var(--surface-2); }
 
-/* Заголовок и подводка шага 1 меньше, чтобы карточка стала самым крупным блоком. */
-[data-screen="step1"] h1 { font-size: 1.15rem; margin-bottom: 6px; }
-[data-screen="step1"] .intro { font-size: 0.86rem; }
-
 /* Приглашение приносить гипотезы в канал — отдельной строкой под выбором. */
 .channel-invite { text-align: center; color: var(--muted); font-size: 0.86rem; margin: 18px 0 2px; }
 
-/* Кнопка перехода на шаге 1 — во всю ширину, как «Запустить пилот» на входе. */
-[data-screen="step1"] .nav { margin-top: 20px; }
-[data-screen="step1"] .nav .primary { margin: 0; width: 100%; padding: 16px 22px; font-size: 1.02rem; }
+/* Кнопка перехода на всех пяти шагах — во всю ширину, как «Запустить пилот» на входе.
+   На этих экранах «Назад» живёт в карте пути, поэтому в футере только эта кнопка. */
+[data-screen="step1"] .nav, [data-screen="step2"] .nav, [data-screen="step3"] .nav,
+[data-screen="step4"] .nav, [data-screen="step5"] .nav { margin-top: 20px; }
+[data-screen="step1"] .nav .primary, [data-screen="step2"] .nav .primary,
+[data-screen="step3"] .nav .primary, [data-screen="step4"] .nav .primary,
+[data-screen="step5"] .nav .primary { margin: 0; width: 100%; padding: 16px 22px; font-size: 1.02rem; }
 
 /* Модальное окно правки гипотезы. */
 .modal-overlay {

@@ -613,7 +613,7 @@ function step3(ctx) {
   } else {
     // Первый заход, либо тройку поменяли и она больше не покрывает задачу.
     if (state.step3Choice) { state.step3Choice = null; ctx.update(); }
-    stage.appendChild(el("button", { class: "primary build", onclick: runBuild }, t.buildButton));
+    stage.appendChild(el("button", { class: "ghost build", onclick: runBuild }, t.buildButton));
   }
 
   wrap.append(el("div", { class: "legend" }, t.chainLabel), chainRow, stage, consequence, foot);

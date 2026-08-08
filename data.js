@@ -482,14 +482,14 @@ export const ui = {
     counterTemplate: "Выбрано {n} из {max}",
     allToolsToggle: "Посмотреть все инструменты",
     gapsTitle: "Не нашлось нужного? Отметь, чего не хватает.",
-    button: "Дальше: проверка →"
+    button: "Проверить решение"
   },
   step3: {
     location: "Dify или ваш код",
     title: "Собери и проверь",
     intro: "Решение, которое не проверяли на данных, называется демо. Демо работает отлично ровно один раз, на сцене. Собери цепочку и посмотри, что получится на реальном случае.",
     chainLabel: "Собранная цепочка",
-    buildButton: "Собрать и проверить →",
+    buildButton: "Запустить тест",
     buildingText: "Прогоняем на реальном случае",
     resultLabel: "Что получилось на реальном случае",
     question: "Достаточно хорошо?",
@@ -499,7 +499,7 @@ export const ui = {
     gapLead: "Чтобы пройти проверку на реальном случае, в сборке не хватает вот чего:",
     swapHint: "Поменяй инструмент в тех же трёх и собери заново.",
     rebuildButton: "Собрать заново →",
-    button: "Дальше: публикация →"
+    button: "Опубликовать для пользователей"
   },
   step4: {
     location: "куда вывести решение",
@@ -511,7 +511,7 @@ export const ui = {
     otherLabel: "Куда вывести решение",
     requirementsLabel: "Что нужно для этого канала",
     earlyAttempt: "Реши, как решение дойдёт до людей. Без этого пилот остаётся у тебя в тестовом окне.",
-    button: "Дальше: метрики →"
+    button: "Проверить метрики"
   },
   step5: {
     location: "LangFuse",
@@ -663,7 +663,7 @@ export const system = {
 export const SCHEMA_VERSION = 3;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.7.1";
+export const GAME_VERSION = "0.7.2";
 
 export function createInitialState() {
   const now = Date.now();
