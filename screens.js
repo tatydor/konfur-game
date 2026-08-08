@@ -45,7 +45,9 @@ function openTextModal({ title, intro, warn, value = "", placeholder = "", maxle
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
   document.addEventListener("keydown", onKey);
 
-  panel.append(
+  // Отсеиваем пустые узлы: нативный append(null) вставил бы текст «null», когда
+  // подводки или предупреждения нет (у модалки гипотезы warn отсутствует).
+  [
     el("h2", { class: "modal-title" }, title),
     intro ? el("p", { class: "modal-intro" }, intro) : null,
     ta, counter,
@@ -54,7 +56,7 @@ function openTextModal({ title, intro, warn, value = "", placeholder = "", maxle
       el("button", { class: "ghost", type: "button", onclick: close }, cancelLabel),
       el("button", { class: "primary", type: "button", onclick: save }, saveLabel)
     )
-  );
+  ].filter(Boolean).forEach((n) => panel.appendChild(n));
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
   updateCounter();
