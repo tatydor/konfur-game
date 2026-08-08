@@ -338,35 +338,89 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .swap-chip.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .muted { color: var(--muted); }
 
-/* Финал */
+/* Финал — терминальное состояние игры. Три визуальных уровня: решение,
+   код подарка, действия после игры. Результат спокойнее блока с кодом. */
+
+/* Уровень 1. Герой: метка места, крупное решение (главное сообщение), фраза-итог. */
+.final-hero { margin-bottom: 20px; }
+.final-badge {
+  display: inline-block;
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 12px;
+}
+.final-hero-row { display: flex; align-items: center; gap: 14px; }
+.final-decision {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(1.5rem, 6.4vw, 1.95rem); line-height: 1.08;
+  letter-spacing: -0.01em; margin: 0; text-wrap: balance; flex: 1;
+}
+.final-conveyor { flex: 0 0 auto; color: var(--accent); opacity: 0.85; }
+.final-conveyor svg { width: 92px; height: auto; display: block; }
+.final-decision-sub { color: var(--muted); margin: 10px 0 0; max-width: 52ch; }
+
+/* Очень узкие экраны: конвейер уводим под заголовок, чтобы не жать решение. */
+@media (max-width: 360px) {
+  .final-hero-row { flex-wrap: wrap; }
+  .final-conveyor svg { width: 76px; }
+}
+
+/* Уровень 3 (карточка результата). Спокойнее блока с кодом: тонкая рамка. */
 .final-card {
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 14px 16px;
   margin-bottom: 16px;
 }
-.final-card .card-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 10px; }
+.final-card-title {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
 .kv { margin: 6px 0; }
+
+/* Скопировать план — вторичное действие с иконкой, не primary. */
+.copy-block { margin: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+.copy-plan {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+}
+.copy-plan .btn-icon { display: inline-flex; }
+.copy-plan .btn-icon svg { width: 18px; height: 18px; display: block; }
+
+/* Уровень 2. Код подарка — самый заметный блок после решения. */
 .code {
   text-align: center;
-  background: var(--surface);
-  border: 1px dashed var(--accent);
+  background: var(--surface-2);
+  border: 1.5px dashed var(--accent);
   border-radius: var(--radius);
-  padding: 16px;
-  margin: 16px 0;
+  padding: 20px 16px;
+  margin: 18px 0;
 }
-.code-label { color: var(--muted); font-size: 0.85rem; }
-.code-value { font-size: 2.1rem; font-weight: 800; letter-spacing: 3px; color: var(--accent); margin: 4px 0; }
-.stand-handoff { color: var(--text); font-weight: 600; margin: 12px 0 0; }
-.ctas { display: grid; gap: 10px; margin: 16px 0; }
-.cta { display: block; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; transition: border-color 0.2s; }
-a.cta:hover { border-color: var(--accent); }
-a.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cta-title { font-weight: 600; color: var(--accent); }
+.code-top { color: var(--text); font-weight: 600; }
+.code-value {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(2.6rem, 13vw, 3.4rem); line-height: 1.05;
+  letter-spacing: 3px; color: var(--accent); margin: 8px 0;
+}
+.code-bottom { color: var(--muted); font-size: 0.9rem; }
+
+/* Действия после игры. Единственный primary — «Разобрать задачу с командой». */
+.final-contact { margin: 20px 0 8px; }
+.final-contact-prompt {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 1.05rem; line-height: 1.2; margin: 0 0 12px; text-wrap: balance;
+}
+
+/* Переход в анкету — низкоприоритетное текстовое действие, без рамки. */
+.final-anketa { margin-top: 18px; text-align: center; }
+.link-action {
+  background: none; border: none; padding: 8px; cursor: pointer;
+  font: inherit; font-family: var(--font-display);
+  color: var(--muted); text-decoration: underline; text-underline-offset: 3px;
+}
+.link-action:hover { color: var(--text); }
 .cta-sub { color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
-.copy-block { margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
-.copy-fallback { width: 100%; box-sizing: border-box; font-family: var(--font-text); font-size: 0.9rem; line-height: 1.4; padding: 10px 12px; border-radius: 10px; resize: vertical; }
 .contact-form { display: flex; flex-direction: column; gap: 8px; }
 .contact-form .cta-sub { margin: 0 0 2px; }
 .contact-row { display: flex; gap: 8px; }

@@ -11,6 +11,25 @@ const WATCH_OWN_MAX = 80; // название метрики в свободно
 // Карандаш правки карточки гипотезы.
 const PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 
+// Иконка копирования — для вторичной кнопки «Скопировать план» на финале.
+const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+// Небольшой линейный конвейер: собранный объект сходит с ленты вправо. В духе
+// игры (обводка currentColor), без bitmap. Декоративный — скрыт от скринридера.
+const CONVEYOR_SVG = '<svg viewBox="0 0 132 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 33h96"/><circle cx="16" cy="38" r="3.4"/><circle cx="38" cy="38" r="3.4"/><circle cx="60" cy="38" r="3.4"/><circle cx="82" cy="38" r="3.4"/><rect x="98" y="12" width="20" height="18" rx="2"/><path d="M103 21l3.4 3.4L114 17"/><path d="M122 21h6m-4-3 3 3-3 3"/></svg>';
+
+// Элемент с встроенной линейной иконкой и (необязательно) текстовой подписью.
+// Иконка живёт в отдельном span (innerHTML), подпись — в span.btn-label, чтобы
+// её текст можно было менять после копирования, не затирая иконку.
+function elSvg(tag, className, svg, labelText) {
+  const node = el(tag, { class: className });
+  const icon = el("span", { class: "btn-icon" });
+  icon.innerHTML = svg;
+  node.appendChild(icon);
+  if (labelText != null) node.appendChild(el("span", { class: "btn-label" }, labelText));
+  return node;
+}
+
 // Замыкание фокуса в модалке: Tab с последнего элемента ведёт на первый и наоборот.
 function trapTab(e, container) {
   const f = container.querySelectorAll('button, textarea, input, a[href], [tabindex]:not([tabindex="-1"])');
@@ -856,114 +875,88 @@ function final(ctx) {
   const task = content.taskById[state.task];
   // Вариант финала определяется решением шага 5.
   const key = state.finalVariant || state.step5Choice || "scale";
-  const v = f.variants[key] || f.variants.scale;
-  const wrap = el("div");
-
-  // У своей задачи в заголовок идёт введённый текст, а не заглушка карточки.
-  const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
-  const title = state.name
-    ? tpl(v.cardTitleNamedTemplate, { name: state.name, task: taskLabel })
-    : tpl(v.cardTitleTemplate, { task: taskLabel });
-
   const isWatch = key === "watch";
-  const toolNames = (state.tools.selected.length ? state.tools.selected : (content.taskTools[state.task]?.reco || []))
-    .map((id) => content.toolById[id]?.name).filter(Boolean);
-  const launchNote = state.step3Choice ? task.check?.[state.step3Choice]?.launch : null;
-  const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
+  const wrap = el("div", { class: "final" });
+
+  // У своей задачи в карточку идёт введённый текст, а не заглушка карточки.
+  const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
   // Строка проверки: в свободной ветке — что игрок наблюдает; в числовой — размер выборки.
   const checkNote = isWatch
     ? `смотрю ${content.watchWhat(state)}, вернусь через две недели`
     : buildHypothesisParts(state.task, state.hypothesis.resultChoice, state.hypothesis.goalChoice, state.hypothesis.sampleSize, state.ownTaskText.trim()).check;
-  // Подпись карточки ветвится по приоритету: остановка → есть «чего не хватило» → обычная.
-  const cardFooterText = state.step5Choice === "stop" ? f.cardFooterStop
-    : (state.tools.gaps.length ? f.cardFooterGaps : f.cardFooter);
 
-  // Итоговая карточка: весь путь одним взглядом, для игрока и стендиста. В свободной
-  // ветке итога проверки и решения ещё нет — эти строки не выводим.
+  // ── Герой финала: метка места, крупное решение (главное сообщение экрана),
+  // одна фраза-итог. Решение — единственный h1, на него уходит фокус при входе.
+  const hero = el("div", { class: "final-hero" },
+    el("div", { class: "final-badge" }, f.metaBadge),
+    el("div", { class: "final-hero-row" },
+      el("h1", { class: "final-decision", tabindex: "-1" }, f.heroTitles[key] || f.heroTitles.scale),
+      elSvg("div", "final-conveyor", CONVEYOR_SVG)
+    ),
+    el("p", { class: "final-decision-sub" }, f.heroSubtitles[key] || f.heroSubtitles.scale)
+  );
+  wrap.appendChild(hero);
+
+  // ── Карточка «Твой пилот»: компактная сводка в четыре строки. Инструменты,
+  // режим и канал остаются в state и в копируемом тексте, но здесь не выводятся.
   const kv = (label, value) =>
     value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
   wrap.appendChild(el("div", { class: "final-card" },
-    el("h1", { class: "card-title", tabindex: "-1" }, title),
+    el("div", { class: "final-card-title" }, f.cardTitle),
+    kv(f.cardTaskLabel, taskLabel),
     kv(f.cardHypothesisLabel, content.hypothesisText(state)),
-    kv(f.cardToolsLabel, toolNames.join(", ")),
-    kv(f.cardLaunchLabel, launchNote),
-    kv(f.cardChannelLabel, channelName),
     kv(f.cardCheckLabel, checkNote),
-    isWatch ? null : kv(f.cardResultLabel, v.resultShort),
-    isWatch ? null : kv(f.cardDecisionLabel, f.decisionLabels[key]),
-    el("div", { class: "muted" }, cardFooterText)
+    kv(f.cardDecisionLabel, f.cardDecisionNames[key] || f.cardDecisionNames.scale)
   ));
 
-  wrap.appendChild(el("p", { class: "intro" }, v.congrats));
-
-  // Передача стендисту и код завершения (для всех вариантов).
-  // Показ финала фиксируется через final_viewed при входе на экран.
-  wrap.appendChild(el("p", { class: "stand-handoff" }, f.standHandoff));
-  const code = giftCode(state.runId);
-  wrap.appendChild(el("div", { class: "code" },
-    el("div", { class: "code-label" }, f.codeLabel),
-    el("div", { class: "code-value" }, code),
-    el("div", { class: "muted" }, f.codeHint)
-  ));
-
-  // Забрать итог с собой: копирование собранной карточки в буфер. Ниже кода,
-  // выше ссылок. Запасной путь — поле с выделенным текстом при отказе clipboard.
+  // ── Скопировать план: вторичное действие с иконкой, не primary. Механика
+  // buildShareText и clipboard без изменений. Всё копирование программное; на
+  // редкий полный отказ показываем короткую подпись прямо на кнопке.
   const shareText = buildShareText(state);
-  const copyBtn = el("button", { class: "primary wide", onclick: onCopy }, f.copyButton);
-  const copyHint = el("div", { class: "muted", style: "display:none" }, f.copyFallbackHint);
-  const copyField = el("textarea", {
-    class: "copy-fallback", readonly: true, rows: "9", "aria-label": f.copyFallbackHint, style: "display:none"
-  });
-  copyField.value = shareText;
+  const copyBtn = elSvg("button", "ghost copy-plan", COPY_SVG, f.copyButton);
+  copyBtn.addEventListener("click", onCopy);
+  const copyLabel = copyBtn.querySelector(".btn-label");
   let copyTimer = null;
-  function flashDone() {
-    copyBtn.textContent = f.copyDone;
+  function flash(text) {
+    copyLabel.textContent = text;
     clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => { copyBtn.textContent = f.copyButton; }, 2000);
-  }
-  function revealField() {
-    copyField.style.display = ""; copyHint.style.display = "";
-    copyField.focus(); copyField.select();
+    copyTimer = setTimeout(() => { copyLabel.textContent = f.copyButton; }, 2000);
   }
   function tryLegacy() {   // execCommand требует выделения и живёт внутри жеста
-    copyField.style.display = ""; copyField.focus(); copyField.select();
-    try { return !!(document.execCommand && document.execCommand("copy")); } catch { return false; }
+    const ta = el("textarea", {
+      readonly: true, "aria-hidden": "true",
+      style: "position:fixed;top:0;left:0;opacity:0;pointer-events:none"
+    });
+    ta.value = shareText;
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    let ok = false;
+    try { ok = !!(document.execCommand && document.execCommand("copy")); } catch { ok = false; }
+    ta.remove();
+    return ok;
   }
   function onCopy() {
     // Метрика — доля дошедших, кто нажал копирование: одно событие на сессию.
     if (!state.copied) { state.copied = true; ctx.update(); ctx.storage.track("summary_copied", {}); }
     if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
-      navigator.clipboard.writeText(shareText).then(() => { copyField.style.display = "none"; copyHint.style.display = "none"; flashDone(); }).catch(revealField);
-    } else if (tryLegacy()) {
-      copyField.style.display = "none"; copyHint.style.display = "none"; flashDone();
+      navigator.clipboard.writeText(shareText).then(() => flash(f.copyDone)).catch(() => flash(tryLegacy() ? f.copyDone : f.copyFail));
     } else {
-      revealField();
+      flash(tryLegacy() ? f.copyDone : f.copyFail);
     }
   }
-  wrap.appendChild(el("div", { class: "copy-block" }, copyBtn, copyHint, copyField));
+  wrap.appendChild(el("div", { class: "copy-block" }, copyBtn));
 
-  // Рабочие призывы к действию: семантические ссылки, новая вкладка, учёт нажатий.
-  const ctas = el("div", { class: "ctas" });
-  for (const c of f.ctas) {
-    const isUrl = /^https?:\/\//.test(c.href || "");
-    ctas.appendChild(el("a", {
-      class: "cta",
-      href: c.href || "#",
-      target: isUrl ? "_blank" : null,
-      rel: isUrl ? "noopener noreferrer" : null,
-      onclick: (e) => {
-        if (!isUrl) e.preventDefault();   // адрес пока заглушка, VERIFY:url
-        ctx.storage.track("cta_clicked", { cta: c.id });
-      }
-    },
-      el("div", { class: "cta-title" }, c.title),
-      el("div", { class: "cta-sub" }, c.sub)
-    ));
-  }
-  wrap.appendChild(ctas);
+  // ── Код подарка: самый заметный блок после решения. Значение — из giftCode.
+  // Показ финала фиксируется через final_viewed при входе на экран.
+  const code = giftCode(state.runId);
+  wrap.appendChild(el("div", { class: "code" },
+    el("div", { class: "code-top" }, f.codeTop),
+    el("div", { class: "code-value" }, code),
+    el("div", { class: "code-bottom" }, f.codeBottom)
+  ));
 
-  // Один добровольный сценарий контакта: раскрывается по нажатию, на подарок не
-  // влияет, повторно не спрашивается. Хранится отдельно от прогресса.
+  // ── Один сценарий контакта после игры: primary раскрывает форму. На подарок не
+  // влияет, повторно не спрашивается. Контакт хранится отдельно от прогресса.
   const contactForm = el("div", { class: "contact-form", style: "display:none" });
   const contactInput = el("input", {
     class: "text-field", type: "text", placeholder: f.contactPlaceholder, "aria-label": f.contactPlaceholder
@@ -971,7 +964,7 @@ function final(ctx) {
   contactInput.value = state.contact || "";
 
   const openContact = el("button", {
-    class: "ghost wide",
+    class: "primary wide",
     onclick: () => { contactForm.style.display = ""; openContact.style.display = "none"; contactInput.focus(); }
   }, f.contactCta);
 
@@ -1019,45 +1012,16 @@ function final(ctx) {
     contactForm.style.display = ""; openContact.style.display = "none";
     contactBtn.disabled = true; contactBtn.textContent = f.contactSent; setMsg(f.contactOk, "ok");
   }
-  wrap.appendChild(el("div", { class: "field" }, openContact, contactForm));
-
-  // Повтор базового вопроса — замер сдвига уходит в аналитику, игроку не показываем.
-  const awareness = choiceRow(
-    [{ id: "yes", label: f.awarenessYes }, { id: "no", label: f.awarenessNo }],
-    state.awarenessAfter,
-    (id) => {
-      state.awarenessAfter = id; ctx.update();
-      ctx.storage.track("knows_after_answered", { value: id });
-    },
-    "toggle"
-  );
-  wrap.appendChild(fieldset(f.awarenessRepeat, awareness));
-
-  // Следующий шаг: подсказки под вариант, можно выбрать или вписать свой.
-  const ownNext = el("input", { class: "text-field", type: "text", placeholder: f.nextStepOwnPlaceholder, "aria-label": f.nextStepPrompt });
-  ownNext.value = v.nextSteps.includes(state.nextStepText) ? "" : (state.nextStepText || "");
-  const chips = el("div", { class: "choices" });
-  v.nextSteps.forEach((s, i) => {
-    const chip = el("button", { class: "choice small" + (state.nextStepText === s ? " selected" : "") }, s);
-    chip.addEventListener("click", () => {
-      [...chips.children].forEach((c) => c.classList.remove("selected"));
-      chip.classList.add("selected");
-      state.nextStepText = s; ownNext.value = ""; ctx.update();
-      // В аналитику — только индекс предложенного шага, без сырого текста.
-      ctx.storage.track("next_step_chosen", { preset: true, index: i });
-    });
-    chips.appendChild(chip);
-  });
-  ownNext.addEventListener("input", () => {
-    [...chips.children].forEach((c) => c.classList.remove("selected"));
-    state.nextStepText = ownNext.value; ctx.update();
-  });
-  wrap.appendChild(el("div", { class: "field" },
-    el("div", { class: "legend" }, f.nextStepPrompt), chips, ownNext
+  wrap.appendChild(el("div", { class: "final-contact" },
+    el("p", { class: "final-contact-prompt" }, f.taskPrompt),
+    openContact, contactForm
   ));
 
-  wrap.appendChild(el("p", { class: "intro" }, f.toAnketaCaption));
-  wrap.appendChild(nav(ctx, { nextLabel: f.toAnketa }));
+  // ── Переход в анкету: вторичное текстовое действие, не primary и без «Назад».
+  // Финал остаётся терминальным состоянием игры, поэтому nav() тут не используем.
+  wrap.appendChild(el("div", { class: "final-anketa" },
+    el("button", { class: "link-action", type: "button", onclick: () => ctx.next() }, f.toAnketa)
+  ));
   return wrap;
 }
 
