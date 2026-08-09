@@ -25,13 +25,22 @@ const ENTRY = {                   // id полей формы (entry.XXXXXX)
   payload: "entry.1535032346"
 };
 
+// Непустая заглушка для пустых полей. Google Форма отклоняет всю запись целиком,
+// если хотя бы один обязательный вопрос пуст, а строки у нас разной природы
+// (контакт без ответов анкеты, сводка без контакта). Поэтому каждому вопросу
+// всегда отдаём непустое значение — запись уходит независимо от «обязательности».
+const FORM_EMPTY = "—";
+
 // Отправка одной строки в Google Форму. Кодировка формы — «простой» запрос,
 // поэтому предзапроса CORS нет; ответ непрозрачный (no-cors), сбой сети ловим.
 export function submitForm(fields) {
   if (!FORM_URL || typeof fetch === "undefined") return Promise.reject(new Error("no form"));
   const params = new URLSearchParams();
   for (const [key, entryId] of Object.entries(ENTRY)) {
-    if (entryId && fields[key] != null) params.append(entryId, String(fields[key]));
+    if (!entryId) continue;
+    const raw = fields[key];
+    const val = (raw == null || String(raw).trim() === "") ? FORM_EMPTY : String(raw);
+    params.append(entryId, val);
   }
   return fetch(FORM_URL, {
     method: "POST",

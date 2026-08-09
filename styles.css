@@ -255,17 +255,25 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .badge { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .reco-tag { display: inline-block; margin-top: 8px; font-size: 0.72rem; color: var(--accent); }
 
-/* Бюджет пилота (шаг 2) */
+/* Бюджет пилота (шаг 2) — индикатор со шкалой, не карточка инструмента. */
 .budget {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: 12px; padding: 12px 14px; margin: 4px 0 14px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: none; border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 4px 0 16px;
 }
 .budget-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.budget-title { font-family: var(--font-display); font-weight: 600; }
+.budget-title {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 0.76rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
 .budget-left { font-family: var(--font-display); font-weight: 800; color: var(--accent); }
 .budget-left.low { color: var(--danger); }
-.budget-note { color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
-.budget-spent { display: block; color: var(--muted); font-size: 0.82rem; margin-top: 6px; }
+.budget-track { height: 6px; border-radius: 999px; background: var(--surface); overflow: hidden; margin: 8px 0 6px; }
+.budget-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 0.18s ease; }
+.budget-fill.low { background: var(--danger); }
+.budget-foot { align-items: center; }
+.budget-note { color: var(--muted); font-size: 0.78rem; }
+.budget-spent { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
 .refine-banner {
   background: var(--surface); border-left: 3px solid var(--accent);
   border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;
@@ -287,6 +295,11 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .contrib { margin: 6px 0; line-height: 1.4; }
 .contrib-idle { color: var(--muted); }
 .contrib-miss { color: var(--danger); font-size: 0.9rem; }
+
+/* Кнопка на всю ширину и «Свернуть» в конце списка инструментов */
+.primary.full, button.primary.full { display: block; width: 100%; margin: 0; }
+.more-toggle { display: block; margin: 4px 0 6px; }
+.more-tools { margin-top: 10px; }
 
 /* Чек-лист публикации */
 .checklist-i { display: grid; gap: 10px; margin: 14px 0; }

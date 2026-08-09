@@ -432,17 +432,22 @@ function step2(ctx) {
   // Доработка: пилот уже тестировали, часть бюджета потрачена безвозвратно.
   if (state.refine) wrap.appendChild(el("div", { class: "refine-banner" }, t.refineBanner));
 
-  // Бюджет пилота: всего, потрачено, осталось. Обновляется при каждом выборе.
+  // Бюджет пилота: строка «осталось», шкала потраченного и подпись. Оформлен как
+  // индикатор, а не как карточка инструмента, чтобы не путать с выбором.
   const budgetBar = el("div", { class: "budget" });
   const budgetLeftEl = el("span", { class: "budget-left" });
   const budgetSpentEl = el("span", { class: "budget-spent" });
+  const budgetFill = el("div", { class: "budget-fill" });
   budgetBar.append(
     el("div", { class: "budget-row" },
       el("span", { class: "budget-title" }, t.budgetTitle),
       budgetLeftEl
     ),
-    el("div", { class: "budget-note" }, content.budgetNote),
-    budgetSpentEl
+    el("div", { class: "budget-track" }, budgetFill),
+    el("div", { class: "budget-row budget-foot" },
+      el("span", { class: "budget-note" }, content.budgetNote),
+      budgetSpentEl
+    )
   );
   wrap.appendChild(budgetBar);
 
@@ -456,9 +461,12 @@ function step2(ctx) {
   function refresh() {
     const sel = state.tools.selected;
     const left = content.budgetLeft(state);
+    const spent = content.budgetSpent(state);
     budgetLeftEl.textContent = tpl(t.budgetLeftTemplate, { left, total: content.pilotBudget });
-    budgetSpentEl.textContent = tpl(t.budgetSpentTemplate, { spent: content.budgetSpent(state) });
+    budgetSpentEl.textContent = tpl(t.budgetSpentTemplate, { spent });
     budgetLeftEl.classList.toggle("low", left <= 15);
+    budgetFill.style.width = Math.min(100, Math.round((spent / content.pilotBudget) * 100)) + "%";
+    budgetFill.classList.toggle("low", left <= 15);
     foot.querySelector(".primary").disabled = sel.length === 0;
     // Недоступные по остатку карточки: выключаем и подписываем, чего не хватает.
     wrap.querySelectorAll(".tool").forEach((c) => {
@@ -519,30 +527,30 @@ function step2(ctx) {
 
   for (const id of mainIds) list.appendChild(toolCard(content.toolById[id]));
 
-  // Остальные инструменты — под раскрытие, не удлиняют основной путь. Рядом —
-  // явный индикатор полного набора, чтобы игрок хотя бы раз увидел все десять.
-  const moreWrap = el("div", { class: "more-tools", style: "display:none" });
+  // Остальные инструменты — под раскрытие той же сеткой, что основной список, не
+  // удлиняют основной путь. «Свернуть» показываем в конце раскрытого списка, а
+  // рядом — явный индикатор полного набора, чтобы игрок хоть раз увидел все десять.
+  const moreWrap = el("div", { class: "tool-list more-tools", style: "display:none" });
   for (const id of restIds) moreWrap.appendChild(toolCard(content.toolById[id]));
   const moreToggle = el("button", {
-    class: "linklike",
+    class: "linklike more-toggle",
     onclick: () => {
       const open = moreWrap.style.display === "";
       moreWrap.style.display = open ? "none" : "";
-      moreToggle.textContent = open ? `${t.allToolsToggle} · ${t.allCountLabel}` : "Свернуть";
+      moreToggle.textContent = open ? `${t.allToolsToggle} · ${t.allCountLabel}` : "Свернуть инструменты";
       refresh();
     }
   }, `${t.allToolsToggle} · ${t.allCountLabel}`);
 
-  // «Подсказать»: мягко подсвечиваем ключевые инструменты (только готовые кейсы).
-  // Своя задача рекомендаций не получает — игра её не знает достаточно.
+  // «Подсказать»: мягко подсвечиваем ключевые инструменты. Только для готовых
+  // кейсов — свою задачу игра не знает достаточно, чтобы советовать стек.
   const hintNote = el("p", { class: "hint-note", style: "display:none" });
-  const hintBtn = el("button", {
+  const hintBtn = isOwn ? null : el("button", {
     class: "ghost small hint-btn",
     type: "button",
     onclick: () => {
       ctx.storage.track("hint_requested", { task: state.task });
       hintNote.style.display = "";
-      if (isOwn) { hintNote.textContent = t.hintOwnText; return; }
       hintNote.textContent = t.hintText;
       const sc = content.taskScenarios[state.task];
       if (!sc) return;
@@ -578,13 +586,9 @@ function step2(ctx) {
     if (state.tools.selected.length === 0) { e.stopImmediatePropagation(); msg.textContent = t.emptyChainError; }
   }, true);
 
-  wrap.append(
-    list, moreToggle, moreWrap,
-    el("div", { class: "tool-actions" }, hintBtn), hintNote,
-    chain, msg,
-    gapsToggle, gapsWrap,
-    foot
-  );
+  wrap.append(list, moreWrap, moreToggle);
+  if (hintBtn) wrap.append(el("div", { class: "tool-actions" }, hintBtn), hintNote);
+  wrap.append(chain, msg, gapsToggle, gapsWrap, foot);
   refresh();
   return wrap;
 }
@@ -1043,66 +1047,72 @@ function final(ctx) {
     el("div", { class: "code-bottom" }, f.codeBottom)
   ));
 
-  // ── Один сценарий контакта после игры: primary раскрывает форму. На подарок не
-  // влияет, повторно не спрашивается. Контакт хранится отдельно от прогресса.
-  const contactForm = el("div", { class: "contact-form", style: "display:none" });
-  const contactInput = el("input", {
-    class: "text-field", type: "text", placeholder: f.contactPlaceholder, "aria-label": f.contactPlaceholder
-  });
-  contactInput.value = state.contact || "";
+  // ── Один сценарий контакта после игры: primary на всю ширину открывает модальное
+  // окно с полями. На подарок не влияет, повторно не спрашивается, контакт хранится
+  // отдельно от прогресса.
+  const openContact = el("button", { class: "primary full", type: "button", onclick: openContactModal }, f.contactCta);
+  if (state.contactSent) { openContact.textContent = f.contactSent; openContact.disabled = true; }
 
-  const openContact = el("button", {
-    class: "primary wide",
-    onclick: () => { contactForm.style.display = ""; openContact.style.display = "none"; contactInput.focus(); }
-  }, f.contactCta);
+  function openContactModal() {
+    if (state.contactSent) return;
+    const overlay = el("div", { class: "modal-overlay" });
+    const panel = el("div", { class: "modal-panel", role: "dialog", "aria-modal": "true", "aria-label": f.contactCta });
+    const close = () => { document.removeEventListener("keydown", onKey); overlay.remove(); openContact.focus(); };
+    function onKey(e) { if (e.key === "Escape") { e.preventDefault(); close(); } else if (e.key === "Tab") trapTab(e, panel); }
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+    document.addEventListener("keydown", onKey);
 
-  contactForm.append(el("p", { class: "cta-sub" }, f.contactExplain), contactInput);
+    const contactInput = el("input", { class: "text-field", type: "text", placeholder: f.contactPlaceholder, "aria-label": f.contactPlaceholder });
+    contactInput.value = state.contact || "";
+    const nodes = [el("h2", { class: "modal-title" }, f.contactCta), el("p", { class: "modal-intro" }, f.contactExplain), contactInput];
 
-  // Короткое поле задачи — только если её не вводили раньше (не «своя задача»).
-  if (state.task !== "own") {
-    const taskInput = el("input", {
-      class: "text-field", type: "text", placeholder: f.contactTaskPlaceholder, "aria-label": f.contactTaskPlaceholder
-    });
-    taskInput.value = state.ownTaskText || "";
-    taskInput.addEventListener("input", () => { state.ownTaskText = taskInput.value; ctx.update(); });
-    contactForm.appendChild(taskInput);
+    // Короткое поле задачи — только если её не вводили раньше (не «своя задача»).
+    if (state.task !== "own") {
+      const taskInput = el("input", { class: "text-field", type: "text", placeholder: f.contactTaskPlaceholder, "aria-label": f.contactTaskPlaceholder });
+      taskInput.value = state.ownTaskText || "";
+      taskInput.addEventListener("input", () => { state.ownTaskText = taskInput.value; ctx.update(); });
+      nodes.push(taskInput);
+    }
+
+    const contactMsg = el("div", { class: "contact-msg", role: "status", "aria-live": "polite" });
+    const setMsg = (text, kind) => { contactMsg.textContent = text; contactMsg.className = "contact-msg" + (kind ? " " + kind : ""); };
+    // Похоже на почту или на ник — иначе объясняем рядом с полем.
+    const validFormat = (v) => /^\S+@\S+\.\S+$/.test(v) || /^@?[\wА-Яа-яЁё.\-]{2,}$/.test(v);
+
+    let sending = false;
+    const sendBtn = el("button", { class: "primary", type: "button" }, f.contactSend);
+    const cancelBtn = el("button", { class: "ghost", type: "button", onclick: close }, f.contactClose);
+    function submitContact() {
+      if (sending || state.contactSent) return;            // без дублей
+      const val = contactInput.value.trim();
+      if (!val) { setMsg(f.contactNeedField, "error"); contactInput.focus(); return; }
+      if (!validFormat(val)) { setMsg(f.contactBadFormat, "error"); contactInput.focus(); return; }
+      sending = true; sendBtn.disabled = true; setMsg(f.contactSending, "");
+      state.contact = val; ctx.update();
+      ctx.storage.saveContact(val, { sessionId: state.runId, task: state.ownTaskText || task.title })
+        .then(() => {
+          state.contactSent = true; ctx.update();
+          setMsg(f.contactOk, "ok"); sendBtn.textContent = f.contactSent;   // остаётся disabled — без дублей
+          openContact.textContent = f.contactSent; openContact.disabled = true;
+        })
+        .catch(() => {
+          ctx.storage.track("network_error", { operation: "save_contact", step: "final" });
+          setMsg(content.system.contactError, "error");
+          sending = false; sendBtn.disabled = false; sendBtn.textContent = f.contactRetry;
+        });
+    }
+    sendBtn.addEventListener("click", submitContact);
+
+    nodes.push(el("div", { class: "modal-actions" }, cancelBtn, sendBtn), contactMsg);
+    nodes.forEach((n) => panel.appendChild(n));
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    contactInput.focus();
   }
 
-  const contactMsg = el("div", { class: "contact-msg", role: "status", "aria-live": "polite" });
-  const setMsg = (text, kind) => { contactMsg.textContent = text; contactMsg.className = "contact-msg" + (kind ? " " + kind : ""); };
-  // Похоже на почту или на ник — иначе объясняем рядом с полем.
-  const validFormat = (v) => /^\S+@\S+\.\S+$/.test(v) || /^@?[\wА-Яа-яЁё.\-]{2,}$/.test(v);
-
-  let sending = false;
-  const contactBtn = el("button", { class: "primary wide", onclick: submitContact }, f.contactSend);
-  function submitContact() {
-    if (sending || state.contactSent) return;            // без дублей
-    const val = contactInput.value.trim();
-    if (!val) { setMsg(f.contactNeedField, "error"); contactInput.focus(); return; }
-    if (!validFormat(val)) { setMsg(f.contactBadFormat, "error"); contactInput.focus(); return; }
-    sending = true; contactBtn.disabled = true; setMsg(f.contactSending, "");
-    state.contact = val; ctx.update();
-    ctx.storage.saveContact(val, { sessionId: state.runId, task: state.ownTaskText || task.title })
-      .then(() => {
-        state.contactSent = true; ctx.update();
-        setMsg(f.contactOk, "ok"); contactBtn.textContent = f.contactSent;   // остаётся disabled — без дублей
-      })
-      .catch(() => {
-        ctx.storage.track("network_error", { operation: "save_contact", step: "final" });
-        setMsg(content.system.contactError, "error");
-        sending = false; contactBtn.disabled = false; contactBtn.textContent = f.contactRetry;
-      });
-  }
-  contactForm.append(contactBtn, contactMsg);
-
-  // Если контакт уже отправлен, показываем форму раскрытой и завершённой.
-  if (state.contactSent) {
-    contactForm.style.display = ""; openContact.style.display = "none";
-    contactBtn.disabled = true; contactBtn.textContent = f.contactSent; setMsg(f.contactOk, "ok");
-  }
   wrap.appendChild(el("div", { class: "final-contact" },
     el("p", { class: "final-contact-prompt" }, f.taskPrompt),
-    openContact, contactForm
+    openContact
   ));
 
   // ── Переход в анкету: вторичное текстовое действие, не primary и без «Назад».

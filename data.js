@@ -611,7 +611,7 @@ export const ui = {
   intro: {
     kicker: "Пилот за пять шагов",
     title: "Собираем решение на конвейере",
-    caption: "Гипотезы, технологии, интерфейсы и метрики идут потоком",
+    caption: "Выбери рабочую задачу, соберём для неё первый ИИ-пилот. Пять шагов, три минуты, ноль созвонов.",
     button: "Начать игру"
   },
   step0: {
@@ -853,6 +853,7 @@ export const final = {
   contactPlaceholder: "почта или ник в ММ",
   contactTaskPlaceholder: "какую задачу хочешь разобрать",
   contactSend: "Отправить",
+  contactClose: "Закрыть",
   contactSending: "Отправляем…",
   contactSent: "Отправлено",
   contactRetry: "Попробовать ещё раз",
@@ -900,7 +901,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.0";
+export const GAME_VERSION = "0.9.1";
 
 export function createInitialState() {
   const now = Date.now();
