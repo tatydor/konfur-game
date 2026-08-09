@@ -1,7 +1,7 @@
 // Изолированный слой хранения и событий.
 // Первая версия: пишет в localStorage и консоль, внешнего приёмника нет.
 // Экраны знают только про этот интерфейс — позже он переключится на сервер
-// без изменения экранов: track(event), saveContact(...), getCounter().
+// без изменения экранов: track(event), saveContact(...), submitForm(...).
 
 const PROGRESS_KEY = "konfur:progress"; // { screen, state }
 const EVENTS_KEY = "konfur:events";     // локальный журнал (когда внешнего приёмника нет)
@@ -152,9 +152,4 @@ export function saveContact(contact, meta = {}) {
     track("contact_submitted", { ok: false });
     return Promise.reject(e);
   }
-}
-
-// ── Счётчик дошедших: скрыт, пока нет хранилища (возвращаем null) ──
-export function getCounter() {
-  return null;
 }
