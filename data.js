@@ -56,8 +56,8 @@ export const tasks = [
   },
   {
     id: "news",
-    title: "Юридическая volokita",
-    card: "Законы, конкуренты и обзоры: успеваешь прочитать только треть",
+    title: "Опять поменяли закон",
+    card: "Законы, конкуренты и обзоры: читаешь за всю команду",
     defaultResult: "time",
     defaultCriterion: "time20",
     example: "За сутки собрано 6 материалов. Один дублируется, один про однофамильца.",
@@ -143,7 +143,7 @@ export const watchOptions = [
 export const taskAction = {
   documents: "автоматизируем извлечение полей из документов",
   requests:  "поставим ассистента на разбор заявок",
-  news:      "настроим мониторинг источников",
+  news:      "поставим сбор и отсев по источникам",
   contract:  "включим сверку договоров с эталоном",
   own:       "внедрим решение под задачу «{ownTaskText}»"
 };
@@ -901,7 +901,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.4";
+export const GAME_VERSION = "0.9.5";
 
 export function createInitialState() {
   const now = Date.now();
