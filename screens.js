@@ -533,10 +533,10 @@ function step2(ctx) {
     onclick: () => {
       const open = moreWrap.style.display === "";
       moreWrap.style.display = open ? "none" : "";
-      moreToggle.textContent = open ? `${t.allToolsToggle} · ${t.allCountLabel}` : "Свернуть инструменты";
+      moreToggle.textContent = open ? t.allToolsToggle : t.collapseToolsLabel;
       refresh();
     }
-  }, `${t.allToolsToggle} · ${t.allCountLabel}`);
+  }, t.allToolsToggle);
 
   // «Подсказать»: мягко подсвечиваем ключевые инструменты. Только для готовых
   // кейсов — свою задачу игра не знает достаточно, чтобы советовать стек.
@@ -837,7 +837,7 @@ function step5Numeric(ctx, wrap, taskLabel) {
   wrap.appendChild(el("div", { class: "legend" }, t.metricsLabel));
   // Плитка «Проверено»: крупная только цифра, единица измерения — мелкой подписью.
   const sampleTile = el("div", { class: "metric" },
-    el("div", { class: "metric-value" }, String(h.sampleSize), el("span", { class: "metric-unit" }, " " + tm.sampleUnit)),
+    el("div", { class: "metric-value" }, String(h.sampleSize), el("span", { class: "metric-unit" }, " " + (tm.sampleUnitCount || tm.sampleUnit))),
     el("div", { class: "metric-label" }, t.tileSample)
   );
   wrap.appendChild(el("div", { class: "metrics" },
@@ -994,8 +994,9 @@ function final(ctx) {
         idle ? e.note : e.contribution));
     });
     recap.appendChild(list);
+    const decisionName = f.cardDecisionNames[key] || f.cardDecisionNames.scale;
     recap.appendChild(el("div", { class: "kv recap-decision" },
-      el("b", {}, f.recapDecisionLabel + ": "), f.cardDecisionNames[key] || f.cardDecisionNames.scale));
+      el("b", {}, f.recapDecisionLabel + ": "), decisionName.charAt(0).toLowerCase() + decisionName.slice(1) + " пилот"));
     wrap.appendChild(recap);
   }
 
