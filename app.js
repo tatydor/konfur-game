@@ -5,7 +5,7 @@
 import content, { flow, createInitialState, SCHEMA_VERSION, GAME_VERSION } from "./data.js";
 import * as storage from "./storage.js";
 import { screens } from "./screens.js";
-import { el, tpl } from "./dom.js";
+import { el } from "./dom.js";
 import { shouldShowIntro, mountIntro } from "./intro.js";
 
 // Версия кеша из index.html должна совпадать с GAME_VERSION. Если забыли
@@ -57,11 +57,6 @@ storage.configure({
 const qrSource = new URLSearchParams(location.search).get("src");
 storage.track("game_opened", qrSource ? { qrSource } : {});
 if (resuming) storage.track("session_resumed", { step: screen, status: state.status });
-
-// Номер шага для баннера восстановления.
-function stepLabel(id) {
-  return stepNoMap[id] ?? null;
-}
 
 function persist() {
   const ok = storage.saveProgress({ screen, state });
@@ -161,14 +156,6 @@ function pathMapEl() {
   return el("div", { class: "pathmap-row" }, backBtn, map);
 }
 
-function resumeBanner() {
-  const n = stepLabel(screen);
-  const text = n
-    ? tpl(content.system.resumeTemplate, { n })
-    : "Продолжаем оттуда, где остановился.";
-  return el("div", { class: "resume" }, text);
-}
-
 let hasRendered = false; // первый показ не забирает фокус на заголовок
 function render() {
   root.innerHTML = "";
@@ -179,7 +166,6 @@ function render() {
     // Карта пути видна на всех пяти шагах. На входном экране её не показываем:
     // это чистый герой с выбором задачи, путь открывается с первого шага.
     if (content.pathMap.some((n) => n.step === screen)) view.appendChild(pathMapEl());
-    if (resuming) view.appendChild(resumeBanner());
     view.appendChild(screens[screen](ctx));
     root.appendChild(view);
     window.scrollTo(0, 0);

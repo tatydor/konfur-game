@@ -885,7 +885,6 @@ export const anketa = {
 // Системные состояния.
 export const system = {
   loading: "Секунду",
-  resumeTemplate: "Остановились на шаге {n}. Продолжаем оттуда.",
   emptyRequired: "Выбери задачу, чтобы начать",
   charsLeftTemplate: "Осталось {n} символов",
   offline: "Связь пропала. Прогресс сохранён, попробуй ещё раз.",
@@ -901,7 +900,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.6";
+export const GAME_VERSION = "0.9.7";
 
 export function createInitialState() {
   const now = Date.now();
