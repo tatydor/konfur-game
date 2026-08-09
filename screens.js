@@ -14,10 +14,6 @@ const PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 // Иконка копирования — для вторичной кнопки «Скопировать план» на финале.
 const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
-// Небольшой линейный конвейер: собранный объект сходит с ленты вправо. В духе
-// игры (обводка currentColor), без bitmap. Декоративный — скрыт от скринридера.
-const CONVEYOR_SVG = '<svg viewBox="0 0 132 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 33h96"/><circle cx="16" cy="38" r="3.4"/><circle cx="38" cy="38" r="3.4"/><circle cx="60" cy="38" r="3.4"/><circle cx="82" cy="38" r="3.4"/><rect x="98" y="12" width="20" height="18" rx="2"/><path d="M103 21l3.4 3.4L114 17"/><path d="M122 21h6m-4-3 3 3-3 3"/></svg>';
-
 // Элемент с встроенной линейной иконкой и (необязательно) текстовой подписью.
 // Иконка живёт в отдельном span (innerHTML), подпись — в span.btn-label, чтобы
 // её текст можно было менять после копирования, не затирая иконку.
@@ -839,10 +835,15 @@ function step5Numeric(ctx, wrap, taskLabel) {
   const stalo = content.observedValue(state.task, resultId, goal.id, effBand);
 
   wrap.appendChild(el("div", { class: "legend" }, t.metricsLabel));
+  // Плитка «Проверено»: крупная только цифра, единица измерения — мелкой подписью.
+  const sampleTile = el("div", { class: "metric" },
+    el("div", { class: "metric-value" }, String(h.sampleSize), el("span", { class: "metric-unit" }, " " + tm.sampleUnit)),
+    el("div", { class: "metric-label" }, t.tileSample)
+  );
   wrap.appendChild(el("div", { class: "metrics" },
     metric(t.tileWas, m.nowShort),
     metric(t.tileNow, stalo, true),
-    metric(t.tileSample, `${h.sampleSize} ${tm.sampleUnit}`)
+    sampleTile
   ));
   const goalTpl = effBand === "strong" ? t.goalReachedTemplate : effBand === "weak" ? t.goalFlatTemplate : t.goalLineTemplate;
   wrap.appendChild(el("p", { class: "goal-line" }, tpl(goalTpl, { target: goal.targetShort })));
@@ -938,10 +939,7 @@ function final(ctx) {
 
   const hero = (headline, sub) => el("div", { class: "final-hero" },
     el("div", { class: "final-badge" }, f.metaBadge),
-    el("div", { class: "final-hero-row" },
-      el("h1", { class: "final-decision", tabindex: "-1" }, headline),
-      elSvg("div", "final-conveyor", CONVEYOR_SVG)
-    ),
+    el("h1", { class: "final-decision", tabindex: "-1" }, headline),
     el("p", { class: "final-decision-sub" }, sub)
   );
 

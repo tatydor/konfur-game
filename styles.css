@@ -30,7 +30,7 @@ body {
 
 /* Заголовки, игровые метки, кнопки и короткие акценты — шрифтом Tektur. */
 h1, .loc, .card-title, .legend, .badge, .metric-value, .code-value, .node-dot,
-.cta-title, .chain-name, .tool-name, .channel-name, .stand-handoff, .done,
+.cta-title, .chain-name, .tool-name, .channel-name, .stand-handoff,
 button.primary, button.ghost, .choice, .build { font-family: var(--font-display); }
 
 #app {
@@ -67,7 +67,7 @@ button.primary, button.ghost, .choice, .build { font-family: var(--font-display)
 
 /* Карта пути: пять названных узлов */
 .pathmap { display: flex; margin-bottom: 18px; }
-.node { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; min-width: 0; }
+.node { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; min-width: 0; }
 /* Соединительная линия между узлами; после пройденного узла — акцентная */
 .node:not(:last-child)::after {
   content: ""; position: absolute; top: 11px; left: 50%; width: 100%; height: 2px;
@@ -84,12 +84,6 @@ button.primary, button.ghost, .choice, .build { font-family: var(--font-display)
 }
 .node.done .node-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .node.current .node-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.node-label {
-  font-size: clamp(0.55rem, 2.6vw, 0.66rem); line-height: 1.1; text-align: center;
-  color: var(--muted); max-width: 100%; padding: 0 1px; overflow-wrap: anywhere;
-}
-.node.current .node-label { color: var(--text); font-weight: 600; }
-.node.done .node-label { color: var(--muted); }
 
 /* Баннер восстановления */
 .resume {
@@ -215,9 +209,9 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 }
 .choice:hover { border-color: var(--accent); }
 .choice.small { padding: 8px 14px; font-size: 0.9rem; }
-/* Выбранное состояние — не только цветом: заливка, обводка и галочка. */
-.choice.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.choice[aria-pressed="true"]::before { content: "✓ "; font-weight: 700; }
+/* Выбранное состояние — акцентная обводка без заливки и без галочки. Единый
+   язык выбора для всех таблеток, как у toggle шага 1. */
+.choice.selected { background: var(--surface); border-color: var(--accent); color: var(--accent); font-weight: 600; box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* Переключатель да/нет по макету — две кнопки-карточки. Неактивная несёт
    бордюр как у карточки задачи (--line #315889), активная — акцентную обводку.
@@ -237,7 +231,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
   background: var(--surface); border-color: var(--accent); color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-.choice.toggle[aria-pressed="true"]::before { content: none; }
 
 /* Инструменты */
 .tool-list { display: grid; gap: 10px; margin: 14px 0; }
@@ -248,12 +241,10 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .tool.selectable { cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
 .tool.selectable:hover { border-color: var(--accent); }
 .tool.selected { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
-.tool.reco { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .tool-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .tool-name { font-weight: 600; }
 .tool-explain { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
 .badge { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
-.reco-tag { display: inline-block; margin-top: 8px; font-size: 0.72rem; color: var(--accent); }
 
 /* Бюджет пилота (шаг 2) — индикатор со шкалой, не карточка инструмента. */
 .budget {
@@ -301,12 +292,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .more-toggle { display: block; margin: 4px 0 6px; }
 .more-tools { margin-top: 10px; }
 
-/* Чек-лист публикации */
-.checklist-i { display: grid; gap: 10px; margin: 14px 0; }
-.check { display: flex; align-items: flex-start; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
-.check input { width: 20px; height: 20px; accent-color: var(--accent); margin-top: 1px; flex: none; }
-.done { color: var(--accent); }
-
 /* Сборка (шаг 3) */
 .stage { margin: 6px 0; }
 .build { width: 100%; }
@@ -353,6 +338,7 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .metric { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
 .metric-value { font-size: 1.35rem; font-weight: 800; }
 .metric-label { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
+.metric-unit { display: block; font-family: var(--font-text); font-size: 0.62rem; font-weight: 400; line-height: 1.1; color: var(--muted); }
 .hints { color: var(--muted); font-size: 0.85rem; padding-left: 18px; margin: 12px 0 0; }
 .hints li { margin: 4px 0; }
 
@@ -395,21 +381,12 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
   font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--accent); margin-bottom: 12px;
 }
-.final-hero-row { display: flex; align-items: center; gap: 14px; }
 .final-decision {
   font-family: var(--font-display); font-weight: 800;
   font-size: clamp(1.5rem, 6.4vw, 1.95rem); line-height: 1.08;
-  letter-spacing: -0.01em; margin: 0; text-wrap: balance; flex: 1;
+  letter-spacing: -0.01em; margin: 0; text-wrap: balance;
 }
-.final-conveyor { flex: 0 0 auto; color: var(--accent); opacity: 0.85; }
-.final-conveyor svg { width: 92px; height: auto; display: block; }
 .final-decision-sub { color: var(--muted); margin: 10px 0 0; max-width: 52ch; }
-
-/* Очень узкие экраны: конвейер уводим под заголовок, чтобы не жать решение. */
-@media (max-width: 360px) {
-  .final-hero-row { flex-wrap: wrap; }
-  .final-conveyor svg { width: 76px; }
-}
 
 /* Уровень 3 (карточка результата). Спокойнее блока с кодом: тонкая рамка. */
 .final-card {
@@ -528,8 +505,7 @@ button.restart { display: block; margin: 24px auto 0; }
 }
 .offline-bar.show { transform: none; }
 
-/* Шаг 2: приглушение при лимите, строка сборки, раскрытия */
-.tool.dimmed { opacity: .45; }
+/* Шаг 2: строка сборки, раскрытия */
 .chain { font-size: .92rem; opacity: .85; margin: .4rem 0; }
 .more-tools, .gaps-wrap { margin-top: .5rem; }
 .edit-actions { display: flex; gap: 1rem; margin: .3rem 0; flex-wrap: wrap; }
@@ -714,6 +690,9 @@ button.restart { display: block; margin: 24px auto 0; }
 .modal-title { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 6px; }
 .modal-intro { color: var(--muted); font-size: 0.88rem; margin: 0 0 12px; }
 .modal-field { min-height: 130px; }
+/* Поля контактной модалки идут стопкой — держим между ними вертикальный зазор. */
+.modal-panel .text-field { margin-bottom: 10px; }
+.modal-panel .text-field:last-of-type { margin-bottom: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .modal-actions .primary, .modal-actions .ghost { margin: 0; }
 

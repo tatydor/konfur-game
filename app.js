@@ -148,12 +148,14 @@ function pathMapEl() {
   const map = el("div", { class: "pathmap", role: "list", "aria-label": "Карта пути" });
   content.pathMap.forEach((node, i) => {
     const status = i < idx ? "done" : i === idx ? "current" : "upcoming";
+    // Подпись шага несёт заголовок экрана, поэтому в карте пути оставляем только
+    // кружок-номер, а название шага отдаём скринридеру через aria-label.
     map.appendChild(el("div", {
       class: "node " + status, role: "listitem",
+      "aria-label": node.label,
       "aria-current": status === "current" ? "step" : null
     },
-      el("span", { class: "node-dot" }, status === "done" ? "✓" : String(i + 1)),
-      el("span", { class: "node-label" }, node.label)
+      el("span", { class: "node-dot" }, status === "done" ? "✓" : String(i + 1))
     ));
   });
   return el("div", { class: "pathmap-row" }, backBtn, map);
