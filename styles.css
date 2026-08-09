@@ -680,3 +680,9 @@ button.restart { display: block; margin: 24px auto 0; }
 /* Шаг 5, свободная ветка: поле для своей метрики. */
 .watch-own-wrap { margin: 10px 0 0; }
 .watch-own { max-width: 42ch; }
+
+/* Финал: повтор входного вопроса — измеряет сдвиг у всех дошедших */
+.final-shift { margin: 18px 0 4px; padding-top: 14px; border-top: 1px solid var(--line); }
+.shift-question { margin: 0 0 8px; color: var(--muted); font-size: 0.92rem; }
+.final-shift .choices { gap: 8px; }
+.shift-done { display: inline-block; margin-left: 4px; color: var(--muted); font-size: 0.88rem; }

@@ -63,6 +63,43 @@ function persist() {
   if (ok === false) storage.track("network_error", { operation: "save_progress", step: screen });
 }
 
+// Сводка прохождения уходит в форму при первом показе финала, а не из анкеты:
+// анкету открывают единицы, поэтому раньше о дошедших не приходило ничего.
+// Ответы анкеты и ответ про сдвиг досылаются своими строками и связываются с
+// этой по sessionId.
+function sendSummary() {
+  if (state.summarySent) return;
+  state.summarySent = true;
+  const summary = content.buildSummary(state, []);
+  persist();
+  storage.submitForm({
+    kind: "summary", sessionId: state.runId, task: state.task,
+    decision: summary.decision, payload: JSON.stringify(summary)
+  }).catch(() => { /* лучшее усилие, прохождение не блокируем */ });
+}
+
+// Игрок ушёл, не дойдя до финала: короткая строка с последним шагом. Это
+// единственный способ увидеть на стенде, где игра теряет людей.
+let dropSent = false;
+function sendDrop() {
+  if (dropSent || state.summarySent || state.status !== "started") return;
+  dropSent = true;
+  storage.submitFormBeacon({
+    kind: "drop", sessionId: state.runId, task: state.task,
+    answer1: screen,
+    payload: JSON.stringify({
+      step: screen, stepNo: stepNoMap[screen] || null,
+      sinceStart: Date.now() - state.createdAt, version: GAME_VERSION
+    })
+  });
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", sendDrop);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") sendDrop();
+  });
+}
+
 // События входа на экран: шаг, финал или анкета.
 function trackEntry(id) {
   if (stepNoMap[id]) storage.track("step_viewed", { step: id, stepNo: stepNoMap[id] });
@@ -70,6 +107,7 @@ function trackEntry(id) {
     const variant = state.finalVariant || state.step5Choice;
     storage.track("final_viewed", { variant });
     storage.track("final_screen_viewed", { variant });
+    sendSummary();
   }
   else if (id === "anketa") storage.track("survey_opened");
 }

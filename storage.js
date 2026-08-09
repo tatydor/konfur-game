@@ -31,10 +31,8 @@ const ENTRY = {                   // id полей формы (entry.XXXXXX)
 // всегда отдаём непустое значение — запись уходит независимо от «обязательности».
 const FORM_EMPTY = "—";
 
-// Отправка одной строки в Google Форму. Кодировка формы — «простой» запрос,
-// поэтому предзапроса CORS нет; ответ непрозрачный (no-cors), сбой сети ловим.
-export function submitForm(fields) {
-  if (!FORM_URL || typeof fetch === "undefined") return Promise.reject(new Error("no form"));
+// Строка формы: каждому вопросу непустое значение (см. FORM_EMPTY выше).
+function formParams(fields) {
   const params = new URLSearchParams();
   for (const [key, entryId] of Object.entries(ENTRY)) {
     if (!entryId) continue;
@@ -42,12 +40,31 @@ export function submitForm(fields) {
     const val = (raw == null || String(raw).trim() === "") ? FORM_EMPTY : String(raw);
     params.append(entryId, val);
   }
+  return params;
+}
+
+// Отправка одной строки в Google Форму. Кодировка формы — «простой» запрос,
+// поэтому предзапроса CORS нет; ответ непрозрачный (no-cors), сбой сети ловим.
+export function submitForm(fields) {
+  if (!FORM_URL || typeof fetch === "undefined") return Promise.reject(new Error("no form"));
   return fetch(FORM_URL, {
     method: "POST",
     mode: "no-cors",
     headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: params.toString()
+    body: formParams(fields).toString()
   });
+}
+
+// Отправка на выходе со страницы: обычный запрос браузер успевает отменить,
+// поэтому здесь sendBeacon — он переживает закрытие вкладки. URLSearchParams
+// уходит с тем же типом содержимого, что и обычная отправка формы.
+export function submitFormBeacon(fields) {
+  if (!FORM_URL) return false;
+  const params = formParams(fields);
+  if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+    try { return navigator.sendBeacon(FORM_URL, params); } catch { /* падаем на fetch */ }
+  }
+  try { submitForm(fields).catch(() => {}); return true; } catch { return false; }
 }
 
 // Общие параметры событий задаёт app.js через configure(): версия игры и

@@ -1193,6 +1193,42 @@ function final(ctx) {
     openContact
   ));
 
+  // ── Повтор входного вопроса: измеряет сдвиг в понимании у всех дошедших, а не
+  // только у заполнивших анкету. Одна строка, два ответа, своя строка в форме.
+  const shiftRow = el("div", { class: "choices" });
+  const shiftDone = el("span", { class: "shift-done", role: "status", "aria-live": "polite" });
+  [["yes", f.awarenessYes], ["no", f.awarenessNo]].forEach(([id, label]) => {
+    const btn = el("button", {
+      class: "choice small" + (state.awarenessAfter === id ? " selected" : ""),
+      type: "button",
+      "aria-pressed": state.awarenessAfter === id ? "true" : "false"
+    }, label);
+    btn.addEventListener("click", () => {
+      if (state.shiftSent) return;                  // отвечаем один раз
+      state.awarenessAfter = id;
+      state.shiftSent = true;
+      ctx.update();
+      ctx.storage.track("knows_after_answered", { value: id, before: state.awarenessBefore });
+      ctx.storage.submitForm({
+        kind: "shift", sessionId: state.runId, task: state.task,
+        answer1: id, payload: JSON.stringify({ before: state.awarenessBefore, after: id })
+      }).catch(() => { /* лучшее усилие */ });
+      shiftRow.querySelectorAll(".choice").forEach((b) => {
+        b.classList.toggle("selected", b === btn);
+        b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+        b.disabled = true;
+      });
+      shiftDone.textContent = f.awarenessThanks;
+    });
+    shiftRow.appendChild(btn);
+  });
+  if (state.shiftSent) {
+    shiftRow.querySelectorAll(".choice").forEach((b) => { b.disabled = true; });
+    shiftDone.textContent = f.awarenessThanks;
+  }
+  wrap.appendChild(el("div", { class: "final-shift" },
+    el("p", { class: "shift-question" }, f.awarenessRepeat), shiftRow, shiftDone));
+
   // ── Переход в анкету: вторичное текстовое действие, не primary и без «Назад».
   // Финал остаётся терминальным состоянием игры, поэтому nav() тут не используем.
   wrap.appendChild(el("div", { class: "final-anketa" },
@@ -1233,12 +1269,13 @@ function anketa(ctx) {
       // В локальную аналитику — только признаки заполнения, без сырого текста.
       const fields = answers.map((a) => a.length > 0);
       ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
-      // В форму — человекочитаемая сводка прохождения с ответами анкеты (kind=summary).
-      const summary = content.buildSummary(state, answers);
+      // В форму — только ответы анкеты (kind=survey). Сводка прохождения уже ушла
+      // при показе финала, эта строка связывается с ней по sessionId.
       ctx.storage.submitForm({
-        kind: "summary", sessionId: state.runId, task: state.task,
-        decision: summary.decision, answer1: summary.answer1, answer2: summary.answer2,
-        payload: JSON.stringify(summary)
+        kind: "survey", sessionId: state.runId, task: state.task,
+        decision: state.finalVariant || state.step5Choice || "",
+        answer1: answers[0], answer2: answers[1],
+        payload: JSON.stringify({ gaps: gapLabels, answers })
       }).catch(() => { /* лучшее усилие */ });
       done.style.display = "";
       restart.style.display = "";

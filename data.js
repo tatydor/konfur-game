@@ -790,6 +790,7 @@ export const final = {
   awarenessRepeat: "Теперь знаешь, с чего начать такой пилот?",
   awarenessYes: "Да",
   awarenessNo: "Нет",
+  awarenessThanks: "Спасибо",
   toAnketa: "Ответить на два вопроса →"
 };
 
@@ -823,7 +824,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.8";
+export const GAME_VERSION = "0.9.9";
 
 export function createInitialState() {
   const now = Date.now();
@@ -860,6 +861,8 @@ export function createInitialState() {
     contact: "",         // необязательно
     contactSent: false,  // контакт уже отправлен — не спрашиваем повторно
     copied: false,       // нажал ли «Скопировать итог» на финале (для сводки/метрики)
+    summarySent: false,  // сводка прохождения уже ушла в форму (шлётся при показе финала)
+    shiftSent: false,    // ответ про сдвиг уже ушёл в форму
     createdAt: now,
     updatedAt: now,
     stepStartedAt: now
