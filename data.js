@@ -17,7 +17,7 @@ export const tasks = [
   {
     id: "documents",
     title: "Гора документов",
-    card: "Счета и акты: данные из них переносишь вручную.",
+    card: "Счета и акты: данные из них переносишь вручную",
     defaultResult: "time",
     defaultCriterion: "time20",
     example: "Из счёта извлечено 11 полей из 12. Дату распознало как 20.02.2062.",
@@ -77,7 +77,7 @@ export const tasks = [
   {
     id: "contract",
     title: "Договор на сверку",
-    card: "Правки к типовому договору: отличия прячутся в пункте 7.4.",
+    card: "Правки к типовому договору: отличия прячутся в пункте 7.4",
     defaultResult: "errors",
     defaultCriterion: "errors2w",
     example: "Найдено 4 отличия от типовой формы. Одно из них оказалось лишним пробелом.",
@@ -97,7 +97,7 @@ export const tasks = [
   {
     id: "own",
     title: "Своя задача",
-    card: "Опиши в двух словах, а на стенде поможем разобраться.",
+    card: "Опиши в двух словах, а на стенде поможем разобраться",
     defaultResult: "time",
     defaultCriterion: "time20",
     example: "Решение отработало на первом случае. Часть результата придётся проверить руками.",
@@ -901,7 +901,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.5";
+export const GAME_VERSION = "0.9.6";
 
 export function createInitialState() {
   const now = Date.now();
