@@ -702,13 +702,88 @@ function step3(ctx) {
     lit();
   }
 
+  // Разбор набора до запуска: пока тест не запускали, ничего не списано, поэтому
+  // сменить набор здесь бесплатно и это не тратит единственную доработку. После
+  // запуска про те же инструменты говорит уже результат теста, но фактом.
+  function showPrecheck() {
+    stage.innerHTML = "";
+    const pre = freeform ? null : content.precheckSet(state.task, state.tools.selected);
+    const runBtn = () => el("button", { class: "ghost build", onclick: runBuild }, t.buildButton);
+
+    if (!pre || (!pre.extra.length && !pre.missing.length)) {
+      // Своей задаче игра не выносит оценку: нужной архитектуры она не знает.
+      if (freeform) stage.appendChild(el("p", { class: "precheck-note" }, t.precheckCustomNote));
+      stage.appendChild(runBtn());
+      return;
+    }
+
+    ctx.storage.track("precheck_shown", {
+      extra: pre.extra.map((x) => x.id),
+      missing: pre.missing.map((m) => m.tool),
+      extraCost: pre.extraCost
+    });
+
+    if (pre.extra.length) {
+      const list = el("ul", { class: "precheck-list" });
+      pre.extra.forEach((x) => list.appendChild(el("li", { class: "precheck-item" },
+        el("b", {}, x.name + " — "), x.note)));
+      stage.appendChild(el("div", { class: "field precheck" },
+        el("div", { class: "legend" }, t.precheckExtraTitle),
+        el("p", { class: "precheck-lead" }, t.precheckExtraLead),
+        list,
+        el("p", { class: "precheck-cost" },
+          tpl(pre.extra.length > 1 ? t.precheckExtraCostMany : t.precheckExtraCostOne, { n: pre.extraCost }))
+      ));
+    }
+
+    if (pre.missing.length) {
+      const list = el("ul", { class: "precheck-list" });
+      pre.missing.forEach((m) => list.appendChild(el("li", { class: "precheck-item precheck-miss" },
+        tpl(t.precheckMissingTemplate, { tool: m.toolName, what: m.label }))));
+      stage.appendChild(el("div", { class: "field precheck precheck-warn" },
+        el("div", { class: "legend" }, t.precheckMissingTitle), list));
+    }
+
+    // Недостающее можно добрать прямо здесь, если хватает остатка бюджета; иначе
+    // остаётся возврат к набору, где игрок сам решит, чем пожертвовать.
+    const add = pre.missing.find((m) => content.toolCost(m.tool) <= content.budgetLeft(state));
+    const actions = el("div", { class: "precheck-actions" });
+    if (add) actions.appendChild(el("button", {
+      class: "ghost wide",
+      onclick: () => {
+        state.tools.selected.push(add.tool);
+        ctx.update();
+        ctx.storage.track("precheck_decision", { decision: "add_tool", tool: add.tool });
+        renderChain();
+        showPrecheck();
+      }
+    }, tpl(t.precheckAddTemplate, { tool: add.toolName })));
+    if (pre.extra.length || !add) actions.appendChild(el("button", {
+      class: "ghost wide",
+      onclick: () => {
+        ctx.storage.track("precheck_decision", { decision: "change_set" });
+        ctx.back();
+      }
+    }, t.precheckChangeButton));
+    actions.appendChild(el("button", {
+      class: "primary wide",
+      onclick: () => {
+        ctx.storage.track("precheck_decision", {
+          decision: "run_as_is", extra: pre.extra.length, missing: pre.missing.length
+        });
+        runBuild();
+      }
+    }, t.precheckRunButton));
+    stage.appendChild(actions);
+  }
+
   renderChain();
   if (state.testCount >= 1) {
     // Тест уже запускали (в том числе после доработки) — показываем результат сразу.
     chainRow.querySelectorAll(".chain-node").forEach((n) => n.classList.add("lit"));
     freeform ? showCustomResult() : showResult();
   } else {
-    stage.appendChild(el("button", { class: "ghost build", onclick: runBuild }, t.buildButton));
+    showPrecheck();
   }
 
   wrap.append(el("div", { class: "legend" }, t.chainLabel), chainRow, stage, consequence, foot);
@@ -994,6 +1069,10 @@ function final(ctx) {
         idle ? e.note : e.contribution));
     });
     recap.appendChild(list);
+    // Сколько из выбранного не пригодилось: так ограничение по бюджету получает смысл.
+    const idle = content.idleToolCount(state.task, state.tools.selected);
+    if (idle) recap.appendChild(el("p", { class: "recap-idle-note" },
+      tpl(idle > 1 ? f.recapIdleMany : f.recapIdleOne, { n: idle, total: state.tools.selected.length })));
     const decisionName = f.cardDecisionNames[key] || f.cardDecisionNames.scale;
     recap.appendChild(el("div", { class: "kv recap-decision" },
       el("b", {}, f.recapDecisionLabel + ": "), decisionName.charAt(0).toLowerCase() + decisionName.slice(1) + " пилот"));

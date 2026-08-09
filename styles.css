@@ -352,23 +352,20 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .consequence { color: var(--muted); font-style: italic; min-height: 1.2em; margin: 10px 0 0; }
 .error { color: var(--danger); min-height: 1.2em; margin: 8px 0; }
 
-/* Пилот собрался не весь: честный разбор нехватки и обмен инструментов. */
-.field.gap { border-left: 3px solid var(--danger); background: var(--surface); border-radius: 10px; padding: 12px 14px; margin: 14px 0; }
-.gap-lead { color: var(--text); margin: 6px 0 8px; }
-.gap-list { margin: 0 0 10px; padding-left: 20px; color: var(--muted); }
-.gap-list li { margin: 4px 0; }
 .gap-hint { color: var(--muted); font-size: 0.9rem; margin: 0 0 10px; }
-.swap-wrap { margin-bottom: 12px; }
-.tool-swap { display: flex; flex-wrap: wrap; gap: 8px; }
-.swap-chip {
-  font-family: var(--font-display);
-  background: var(--surface); border: 1px solid var(--line);
-  color: var(--muted); border-radius: 999px; padding: 8px 14px;
-  min-height: 44px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
-}
-.swap-chip.reco { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-.swap-chip.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .muted { color: var(--muted); }
+
+/* Разбор набора до запуска теста (шаг 3): что можно убрать и чего не хватает.
+   Спокойная рамка у лишнего, тревожная у нехватки — решение остаётся за игроком. */
+.precheck { border-left: 3px solid var(--line); background: var(--surface); border-radius: 10px; padding: 12px 14px; margin: 14px 0; }
+.precheck.precheck-warn { border-left-color: var(--danger); }
+.precheck-lead { margin: 6px 0 8px; }
+.precheck-list { list-style: none; margin: 0; padding: 0; }
+.precheck-item { margin: 6px 0; line-height: 1.4; color: var(--muted); }
+.precheck-miss { color: var(--text); }
+.precheck-cost { margin: 10px 0 0; font-size: 0.9rem; color: var(--muted); }
+.precheck-note { color: var(--muted); font-size: 0.9rem; margin: 6px 0 12px; }
+.precheck-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 2px; }
 
 /* Финал — терминальное состояние игры. Три визуальных уровня: решение,
    код подарка, действия после игры. Результат спокойнее блока с кодом. */
@@ -415,6 +412,7 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .recap-list { list-style: none; margin: 0; padding: 0; }
 .recap { margin: 7px 0; line-height: 1.4; }
 .recap-idle { color: var(--muted); }
+.recap-idle-note { margin: 10px 0 0; font-size: 0.9rem; color: var(--muted); }
 .recap-decision { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .final-stand-note {
   color: var(--text); background: var(--surface);

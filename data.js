@@ -264,9 +264,12 @@ export const taskMetrics = {
   }
 };
 
-// Список результатов задачи в порядке кнопок (без служебных ключей samples/sampleUnit).
+// Список результатов задачи в порядке кнопок. Результат узнаём по структуре (у него
+// есть goals), а не по чёрному списку служебных имён: перечисление имён уже дало
+// пустую четвёртую кнопку, когда рядом появился sampleUnitCount.
 export function taskResultIds(taskId) {
-  return Object.keys(taskMetrics[taskId] || {}).filter((k) => k !== "samples" && k !== "sampleUnit");
+  const tm = taskMetrics[taskId] || {};
+  return Object.keys(tm).filter((k) => Array.isArray(tm[k]?.goals));
 }
 
 // Числовые значения по умолчанию: первый результат, первая цель, первая выборка.
@@ -429,7 +432,7 @@ export const taskScenarios = {
   requests: {
     requiredCapabilities: [
       { id: "understand", label: "разобрать обращение",  tool: "llm" },
-      { id: "assemble",   label: "собрать в процесс",    tool: "dify" },
+      { id: "assemble",   label: "собрать шаги в процесс", tool: "dify" },
       { id: "integrate",  label: "дотянуться до систем", tool: "mcp" }
     ],
     toolEffects: {
@@ -454,7 +457,7 @@ export const taskScenarios = {
   news: {
     requiredCapabilities: [
       { id: "collect", label: "собрать новости",   tool: "cargo" },
-      { id: "filter",  label: "разобрать и отсеять", tool: "llm" }
+      { id: "filter",  label: "разобрать и отсеять материалы", tool: "llm" }
     ],
     toolEffects: {
       cargo: { relevance: "core",   contribution: "собрал материалы по источникам." },
@@ -478,7 +481,7 @@ export const taskScenarios = {
   contract: {
     requiredCapabilities: [
       { id: "understand", label: "понять правки",     tool: "llm" },
-      { id: "compare",    label: "сверить с эталоном", tool: "rag" }
+      { id: "compare",    label: "сверить договор с эталоном", tool: "rag" }
     ],
     toolEffects: {
       llm:  { relevance: "core",    contribution: "сопоставила формулировки и объяснила смысл правок." },
@@ -533,6 +536,29 @@ export function isOverbuilt(taskId, state) {
   if (!sc || outcomeBand(taskId, state.tools.selected) !== "strong") return false;
   const hasIrrelevant = state.tools.selected.some((id) => sc.toolEffects[id]?.relevance === "irrelevant");
   return hasIrrelevant || budgetSpent(state) >= 85;
+}
+
+// Разбор набора до запуска теста (шаг 3): что можно убрать и чего не хватает.
+// Лишним считаем только нерелевантное: useful и context дают реальный вклад, и
+// записывать их в бесполезные было бы неправдой. Для своей задачи возвращаем null —
+// нужной архитектуры игра не знает и оценку не выносит.
+export function precheckSet(taskId, selected = []) {
+  const sc = taskScenarios[taskId];
+  if (!sc) return null;
+  const extra = selected
+    .filter((id) => sc.toolEffects[id]?.relevance === "irrelevant")
+    .map((id) => ({ id, name: toolById[id]?.name || id, note: sc.toolEffects[id].note, cost: toolCost(id) }));
+  const missing = sc.requiredCapabilities
+    .filter((c) => !selected.includes(c.tool))
+    .map((c) => ({ ...c, toolName: toolById[c.tool]?.name || c.tool }));
+  return { extra, extraCost: extra.reduce((sum, t) => sum + t.cost, 0), missing };
+}
+
+// Сколько выбранных инструментов не участвовало в решении — строка на финале.
+export function idleToolCount(taskId, selected = []) {
+  const sc = taskScenarios[taskId];
+  if (!sc) return 0;
+  return selected.filter((id) => sc.toolEffects[id]?.relevance === "irrelevant").length;
 }
 
 // Соответствие выбранного канала задаче (для готовых кейсов).
@@ -688,10 +714,17 @@ export const ui = {
     enoughLabel: "Принять",
     refineLabel: "Доработать",
     refineDoneNote: "Одну доработку уже сделали, второй раунд в игре не проходим.",
-    gapResultLabel: "Пилот собрался не весь",
-    gapLead: "Чтобы пройти проверку на реальном случае, в сборке не хватает вот чего:",
-    swapHint: "Поменяй инструмент в тех же трёх и собери заново.",
-    rebuildButton: "Собрать заново →",
+    // Разбор набора до запуска: пока ничего не потрачено, менять его бесплатно.
+    precheckExtraTitle: "Что можно убрать",
+    precheckExtraLead: "Эти инструменты не помогают проверить твою гипотезу:",
+    precheckExtraCostOne: "Он расходует {n} баллов бюджета и не влияет на результат пилота.",
+    precheckExtraCostMany: "Они расходуют {n} баллов бюджета и не влияют на результат пилота.",
+    precheckMissingTitle: "Чего не хватает",
+    precheckMissingTemplate: "Без {tool} решение не сможет {what}.",
+    precheckChangeButton: "Изменить набор",
+    precheckRunButton: "Запустить как есть",
+    precheckAddTemplate: "Добавить {tool}",
+    precheckCustomNote: "Проверь, какую роль выполняет каждый инструмент. Спорные разбери со стендистом.",
     button: "Выбрать способ запуска →"
   },
   step4: {
@@ -771,7 +804,7 @@ export const final = {
   outcomeStop: "Пилот остановлен вовремя",
   outcomeOverbuilt: "Решение получилось сложнее необходимого",
   outcomeSubStop: "Проверка показала ограничения решения и помогла не тратить ресурсы на масштабирование.",
-  outcomeSubOverbuilt: "Цель достигнута, но часть компонентов почти не повлияла на результат.",
+  outcomeSubOverbuilt: "Цель достигнута, но часть инструментов почти не повлияла на результат.",
   metricsLabel: "Что показал пилот",
   mWas: "Было",
   mNow: "Стало",
@@ -779,6 +812,9 @@ export const final = {
   mBudget: "Бюджет",
   recapLabel: "Собранное решение",
   recapDecisionLabel: "Следующий шаг",
+  // Итог бюджетного урока: сложное решение можно упростить без потери результата.
+  recapIdleOne: "1 из {total} инструментов не участвовал в решении.",
+  recapIdleMany: "{n} из {total} инструментов не участвовали в решении.",
   // Финал своей задачи: черновик пилота для разговора со стендистом, без выдуманных метрик.
   customHeadline: "Черновик пилота собран",
   customSub: "Проверишь его на своих случаях и обсудишь со стендистом.",
@@ -865,7 +901,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.3";
+export const GAME_VERSION = "0.9.4";
 
 export function createInitialState() {
   const now = Date.now();
@@ -1059,6 +1095,7 @@ export const content = {
   tools, toolById, taskTools, gapOptions,
   pilotBudget, budgetNote, toolCost, budgetSpent, budgetLeft,
   taskScenarios, relevanceRank, outcomeBand, effectiveBand, isOverbuilt, publicationFitOf, observedValue,
+  precheckSet, idleToolCount,
   channels, channelById, taskChannels,
   step3Consequence, taskAbilities, pilotGaps, step5Consequence,
   ui, final, anketa, system, flow, pathMap
