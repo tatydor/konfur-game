@@ -414,6 +414,13 @@ function step2(ctx) {
   const isOwn = state.task === "own";
   const tt = content.taskTools[state.task] || { reco: [], alt: [] };
   const mainIds = [...tt.reco, ...tt.alt];                    // основной экран: рекомендации + альтернативы
+  // Агентские фреймворки — основное направление платформы, поэтому они видны сразу
+  // после LLM, без раскрытия полного списка. Рекомендованный набор под задачу и
+  // бюджет это не меняет: reco остаётся прежним.
+  if (!mainIds.includes("agents")) {
+    const i = mainIds.indexOf("llm");
+    mainIds.splice(i >= 0 ? i + 1 : mainIds.length, 0, "agents");
+  }
   const restIds = content.tools.map((x) => x.id).filter((id) => !mainIds.includes(id));
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
@@ -443,7 +450,7 @@ function step2(ctx) {
   const msg = el("div", { class: "error", role: "alert" });
   const chain = el("p", { class: "chain" });
   const list = el("div", { class: "tool-list" });
-  const foot = nav(ctx, { nextLabel: state.refine ? t.refineButton : t.button, disabled: state.tools.selected.length === 0 });
+  const foot = nav(ctx, { nextLabel: state.refine ? t.refineButton : t.button });
 
   const canAfford = (id) => state.tools.purchased.includes(id) || content.toolCost(id) <= content.budgetLeft(state);
 
@@ -456,7 +463,6 @@ function step2(ctx) {
     budgetLeftEl.classList.toggle("low", left <= 15);
     budgetFill.style.width = Math.min(100, Math.round((spent / content.pilotBudget) * 100)) + "%";
     budgetFill.classList.toggle("low", left <= 15);
-    foot.querySelector(".primary").disabled = sel.length === 0;
     // Недоступные по остатку карточки: выключаем и подписываем, чего не хватает.
     wrap.querySelectorAll(".tool").forEach((c) => {
       const id = c.getAttribute("data-id");
@@ -804,7 +810,6 @@ function step4(ctx) {
     nextLabel: t.button,
     onNext: () => { if (!state.publishChannel) { msg.textContent = t.earlyAttempt; return; } ctx.next(); }
   });
-  foot.querySelector(".primary").disabled = !state.publishChannel;
 
   // Канал объясняем пользовательским сценарием, внутренние названия — вторым уровнем.
   // В списке выбора это кнопка (доступна с клавиатуры), в рекомендации — просто карточка.
@@ -837,7 +842,6 @@ function step4(ctx) {
     ctx.storage.track("publication_selected", { channel: id, fit: content.publicationFitOf(state.task, id) });
     const locEl = head.querySelector(".loc");
     if (locEl) locEl.textContent = locFor();
-    foot.querySelector(".primary").disabled = false;
     msg.textContent = "";
     showRequirements(id);
     renderBody();
