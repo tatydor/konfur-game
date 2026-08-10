@@ -4,6 +4,7 @@
 
 import { el, tpl } from "./dom.js";
 import { resetDependentOnTask, buildHypothesis, buildHypothesisParts, buildShareText } from "./data.js";
+import { taskIcons } from "./task-icons.js";
 
 const HYP_MAX = 220;      // предел длины гипотезы
 const WATCH_OWN_MAX = 80; // название метрики в свободной ветке — короткое
@@ -164,13 +165,6 @@ function giftCode(runId) {
   return `К${first}-${digits}`;
 }
 
-// Линейные иконки задач: встроенный SVG, currentColor, без внешних файлов.
-const taskIcons = {
-  documents: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h6l4 4v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M9 12.5h6M9 16h4"/></svg>',
-  requests:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a7.5 7.5 0 0 1-10.9 6.7L4 20l1.8-5.3A7.5 7.5 0 1 1 21 11.5Z"/><path d="M9 11h6M9 14h3"/></svg>',
-  news:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12v13H5a1.5 1.5 0 0 1-1.5-1.5Z"/><path d="M16 9h3.5v8.5A1.5 1.5 0 0 1 18 19"/><path d="M7 9.5h6M7 12.5h6M7 15.5h4"/></svg>',
-  contract:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12S6 5.8 12 5.8 21.4 12 21.4 12 18 18.2 12 18.2 2.6 12 2.6 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>'
-};
 function taskIconEl(id) {
   if (!taskIcons[id]) return null;
   const s = el("span", { class: "card-icon", "aria-hidden": "true" });
@@ -238,7 +232,7 @@ function step0(ctx) {
         "aria-pressed": selected ? "true" : "false",
         onclick: () => (own ? openOwnModal(card) : selectTask(task.id))
       },
-        own ? null : taskIconEl(task.id),
+        taskIconEl(task.id),
         el("div", { class: "card-title" }, own && filled ? t.ownFilledTitle : task.title),
         el("div", { class: "card-desc" }, own && filled ? state.ownTaskText.trim() : task.card)
       );
@@ -255,7 +249,6 @@ function step0(ctx) {
   );
 
   wrap.append(
-    el("div", { class: "section-label" }, t.sectionLabel),
     cards,
     fieldset(t.awarenessQuestion, awareness),
     error,

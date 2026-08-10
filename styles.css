@@ -135,14 +135,22 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 }
 
 .start .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
-.start .card { display: flex; flex-direction: column; gap: 4px; padding: 13px 14px; }
+.start .card { display: flex; flex-direction: column; gap: 4px; padding: 14px; }
 .start .card-title { font-size: 0.98rem; line-height: 1.15; }
 .start .card-desc { font-size: 0.85rem; line-height: 1.32; }
-.card-icon { display: inline-flex; color: var(--accent); margin-bottom: 4px; }
-.card-icon svg { width: 22px; height: 22px; display: block; }
+/* Иконка задачи: рисунок сам несёт рамку и прорези, поэтому обёртке рамка не нужна */
+.card-icon { display: inline-flex; margin-bottom: 8px; }
+.card-icon svg { width: 46px; height: auto; display: block; }
 /* Своя задача — пунктирная карточка во всю ширину под четырьмя основными */
-.start .card-own { grid-column: 1 / -1; border-style: dashed; background: transparent; }
+/* Своя задача — во всю ширину и в строку: иконка слева, текст справа */
+.start .card-own {
+  grid-column: 1 / -1; border-style: dashed; background: transparent;
+  display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center;
+}
 .start .card-own.selected { border-style: solid; background: var(--surface-2); }
+.start .card-own .card-icon { grid-row: 1 / span 2; margin-bottom: 0; }
+.start .card-own .card-title { align-self: end; }
+.start .card-own .card-desc { align-self: start; }
 
 /* Вопрос перед запуском — подпись стилем .section-label (см. выше), выбор по центру */
 .start .field { text-align: center; }
