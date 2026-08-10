@@ -907,10 +907,11 @@ function step5Numeric(ctx, wrap, taskLabel) {
   const stalo = content.observedValue(state.task, resultId, goal.id, effBand);
 
   wrap.appendChild(el("div", { class: "legend" }, t.metricsLabel));
-  // Плитка «Проверено»: крупная только цифра, единица измерения — мелкой подписью.
-  const sampleTile = el("div", { class: "metric" },
-    el("div", { class: "metric-value" }, String(h.sampleSize), el("span", { class: "metric-unit" }, " " + (tm.sampleUnitCount || tm.sampleUnit))),
-    el("div", { class: "metric-label" }, t.tileSample)
+  // Плитка «Проверено»: крупная цифра, а единица и подпись — одной строкой,
+  // иначе под числом стояли две подписи разного кегля.
+  const sampleTile = metric(
+    (tm.sampleUnitCount || tm.sampleUnit) + " " + t.tileSample.toLowerCase(),
+    String(h.sampleSize)
   );
   wrap.appendChild(el("div", { class: "metrics" },
     metric(t.tileWas, m.nowShort),

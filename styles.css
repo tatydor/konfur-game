@@ -331,7 +331,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .metric { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
 .metric-value { font-size: 1.35rem; font-weight: 800; }
 .metric-label { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
-.metric-unit { display: block; font-family: var(--font-text); font-size: 0.62rem; font-weight: 400; line-height: 1.1; color: var(--muted); }
 .hints { color: var(--muted); font-size: 0.85rem; padding-left: 18px; margin: 12px 0 0; }
 .hints li { margin: 4px 0; }
 
@@ -681,7 +680,7 @@ button.restart { display: block; margin: 24px auto 0; }
 .modal-actions .primary, .modal-actions .ghost { margin: 0; }
 
 /* Шаг 5, числовая ветка: плитка «Стало» подсвечена, цель строкой под плитками. */
-.metric-accent { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/* «Стало» выделяем только цветом цифры: акцентная рамка читалась как кнопка. */
 .metric-accent .metric-value { color: var(--accent); }
 .goal-line { color: var(--muted); font-size: 0.9rem; margin: 4px 0 0; }
 
