@@ -304,10 +304,13 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
   display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   align-items: stretch; gap: 8px; margin: 6px 0 4px;
 }
-.chain-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Плашка тянется на всю высоту ряда: иначе двухстрочное название делает свою
+   плашку выше соседних, и ряд выглядит рваным. Текст внутри центрован сам. */
+.chain-cell { display: flex; align-items: stretch; gap: 8px; min-width: 0; }
+.chain-cell .chain-arrow { align-self: center; }
 .chain-node {
   flex: 1 1 auto; min-width: 0;
-  display: flex; align-items: center;
+  display: flex; align-items: center; justify-content: center; text-align: center;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 12px; padding: 10px 12px;
   opacity: 0.5; transition: opacity 0.25s, border-color 0.25s, box-shadow 0.25s;
