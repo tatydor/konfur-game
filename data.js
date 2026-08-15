@@ -810,7 +810,7 @@ export const anketa = {
     { text: "Что мешает твоей команде начать?" }
   ],
   button: "Отправить",
-  thanks: "Спасибо. Прочитаем всё, включая то, что написано в сердцах."
+  thanks: "Спасибо. Обещаем прочитать, а не сложить в папку «посмотрим потом»."
 };
 
 // Системные состояния.
@@ -830,7 +830,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.32";
+export const GAME_VERSION = "0.9.33";
 
 export function createInitialState() {
   const now = Date.now();
