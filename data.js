@@ -637,7 +637,6 @@ export const ui = {
     location: "Dify или твой код",
     title: "Проверь решение",
     intro: "Запусти собранную цепочку на реальном примере и посмотри, как она работает",
-    chainLabel: "Как работает решение",
     buildButton: "Запустить тест",
     buildingText: "Прогоняем на реальном случае",
     resultLabel: "Результат теста",
@@ -823,7 +822,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.12";
+export const GAME_VERSION = "0.9.14";
 
 export function createInitialState() {
   const now = Date.now();

@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* иначе раскладка флексом перебивает атрибут */
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -293,17 +294,22 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .building { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 14px 0; }
 
 /* Шаг 3: собранная цепочка инструментов */
-.chain-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 6px 0 4px; }
+/* Сетка равных колонок вместо гибкой строки: плашки одной ширины, а на узком
+   экране цепочка переносится рядами и последняя плашка не растягивается. */
+.chain-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  align-items: stretch; gap: 8px; margin: 6px 0 4px;
+}
+.chain-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .chain-node {
-  flex: 1 1 0; min-width: 96px;
-  display: flex; flex-direction: column; gap: 2px;
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 12px; padding: 10px 12px;
   opacity: 0.5; transition: opacity 0.25s, border-color 0.25s, box-shadow 0.25s;
 }
 .chain-node.lit { opacity: 1; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.chain-name { font-weight: 600; }
-.chain-role { color: var(--muted); font-size: 0.82rem; }
+.chain-name { font-weight: 600; overflow-wrap: break-word; }
 .chain-arrow { align-self: center; color: var(--muted); }
 
 /* Шаг 4: каналы публикации */

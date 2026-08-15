@@ -603,17 +603,22 @@ function step3(ctx) {
     chainRow.innerHTML = "";
     const chainTools = state.tools.selected.map((id) => content.toolById[id]).filter(Boolean);
     chainTools.forEach((tl, i) => {
-      if (i) chainRow.appendChild(el("span", { class: "chain-arrow" }, "→"));
-      chainRow.appendChild(el("div", { class: "chain-node" },
-        el("span", { class: "chain-name" }, tl.name),
-        el("span", { class: "chain-role" }, tl.role)
-      ));
+      // В плашке только название: роль каждого инструмента разбирается текстом
+      // до запуска (разбор набора) и после него (роль инструментов).
+      // Стрелка лежит в одной ячейке со своей плашкой, поэтому при переносе
+      // цепочки на вторую строку она уезжает вместе с ней, а не висит хвостом.
+      const node = el("div", { class: "chain-node" }, el("span", { class: "chain-name" }, tl.name));
+      chainRow.appendChild(i
+        ? el("div", { class: "chain-cell" }, el("span", { class: "chain-arrow" }, "→"), node)
+        : el("div", { class: "chain-cell" }, node));
     });
   }
 
   const stage = el("div", { class: "stage" });
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !freeform && state.step3Choice !== "enough" });
+  // До запуска теста идти дальше не с чем, поэтому переход к шагу 4 не показываем.
+  foot.hidden = true;
 
   const consequenceFor = (id) => task.check?.[id]?.consequence || content.step3Consequence[id];
 
@@ -625,6 +630,7 @@ function step3(ctx) {
       el("div", { class: "legend" }, t.resultLabel),
       el("div", { class: "callout" }, t.customResult)
     ));
+    foot.hidden = false;
     foot.querySelector(".primary").disabled = false;
   }
 
@@ -637,6 +643,7 @@ function step3(ctx) {
     const out = sc.outcomes[band];
 
     stage.innerHTML = "";
+    foot.hidden = false;
     stage.appendChild(el("div", { class: "field" },
       el("div", { class: "legend" }, t.resultLabel),
       el("div", { class: "callout" }, out.testResult)
@@ -707,7 +714,7 @@ function step3(ctx) {
   function showPrecheck() {
     stage.innerHTML = "";
     const pre = freeform ? null : content.precheckSet(state.task, state.tools.selected);
-    const runBtn = () => el("button", { class: "ghost build", onclick: runBuild }, t.buildButton);
+    const runBtn = () => el("button", { class: "primary build", onclick: runBuild }, t.buildButton);
 
     if (!pre || (!pre.extra.length && !pre.missing.length)) {
       // Своей задаче игра не выносит оценку: нужной архитектуры она не знает.
@@ -785,7 +792,7 @@ function step3(ctx) {
     showPrecheck();
   }
 
-  wrap.append(el("div", { class: "legend" }, t.chainLabel), chainRow, stage, consequence, foot);
+  wrap.append(chainRow, stage, consequence, foot);
   return wrap;
 }
 
