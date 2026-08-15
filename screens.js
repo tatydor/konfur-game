@@ -1089,10 +1089,12 @@ function final(ctx) {
   const taskLabel = state.task === "own" ? (state.ownTaskText.trim() || task.title) : task.title;
   const kv = (label, value) => value ? el("div", { class: "kv" }, el("b", {}, label + ": "), value) : null;
 
+  // Подстрочник необязательный: у своей задачи под заголовком ничего нет, поэтому
+  // пустой абзац не создаём, иначе он оставлял бы лишний отступ до карточки.
   const hero = (headline, sub) => el("div", { class: "final-hero" },
     el("div", { class: "final-badge" }, f.metaBadge),
     el("h1", { class: "final-decision", tabindex: "-1" }, headline),
-    el("p", { class: "final-decision-sub" }, sub)
+    sub ? el("p", { class: "final-decision-sub" }, sub) : null
   );
 
   if (freeform) {
@@ -1100,7 +1102,7 @@ function final(ctx) {
     // «было → стало», ни оценки качества стека — только собранный черновик.
     const chainNames = state.tools.selected.map((id) => content.toolById[id]?.name).filter(Boolean);
     const channelName = state.publishChannel ? content.channelById[state.publishChannel]?.name : null;
-    wrap.appendChild(hero(f.customHeadline, f.customSub));
+    wrap.appendChild(hero(f.customHeadline));
     wrap.appendChild(el("div", { class: "final-card" },
       el("div", { class: "final-card-title" }, f.recapLabel),
       kv(f.customTaskLabel, taskLabel),
@@ -1109,7 +1111,6 @@ function final(ctx) {
       kv(f.customChannelLabel, channelName),
       kv(f.customWatchLabel, content.watchWhat(state))
     ));
-    wrap.appendChild(el("p", { class: "final-stand-note" }, f.customStandNote));
   } else {
     // ── Готовый кейс: исход, метрики и recap ролей инструментов в этом кейсе.
     const sc = content.taskScenarios[state.task];

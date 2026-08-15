@@ -749,20 +749,19 @@ export const final = {
   mNow: "Стало",
   mGoal: "Цель",
   mBudget: "Бюджет",
-  recapLabel: "Собранное решение",
+  // Заголовок карточки общий для обоих финалов: и для готового кейса, и для своей задачи.
+  recapLabel: "Твоё решение",
   recapDecisionLabel: "Следующий шаг",
   // Итог бюджетного урока: сложное решение можно упростить без потери результата.
   recapIdleOne: "1 из {total} инструментов не участвовал в решении",
   recapIdleMany: "{n} из {total} инструментов не участвовали в решении",
   // Финал своей задачи: черновик пилота для разговора со стендистом, без выдуманных метрик.
   customHeadline: "Черновик пилота собран",
-  customSub: "Проверишь его на своих случаях и обсудишь со стендистом",
-  customTaskLabel: "Твоя задача",
+  customTaskLabel: "Задача",
   customHypothesisLabel: "Гипотеза",
   customChainLabel: "Черновик цепочки",
   customChannelLabel: "Канал",
   customWatchLabel: "Будем смотреть",
-  customStandNote: "Покажи этот план стендисту — вместе проверите цепочку и следующий шаг",
   // Код подарка: самый заметный блок после решения. Значение — из giftCode(runId).
   codeTop: "Покажи этот код стендисту",
   codeBottom: "Забери подарок",
@@ -833,7 +832,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.36";
+export const GAME_VERSION = "0.9.37";
 
 export function createInitialState() {
   const now = Date.now();
