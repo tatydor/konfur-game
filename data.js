@@ -670,7 +670,9 @@ export const ui = {
     precheckChangeButton: "Изменить набор",
     precheckRunButton: "Запустить как есть",
     precheckAddTemplate: "Добавить {tool}",
-    precheckCustomNote: "Проверь, какую роль выполняет каждый инструмент. Спорные разбери со стендистом",
+    // Спорные места отправляем туда же, куда ведут остальные ссылки игры: к команде
+    // платформы в ~srs_support, как в подсказках шага 5.
+    precheckCustomNote: "Проверь, какую роль выполняет каждый инструмент. Спорные разбери с командой ИИ-платформы в ~srs_support",
     button: "Выбрать способ запуска →"
   },
   step4: {
@@ -832,7 +834,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.37";
+export const GAME_VERSION = "0.9.38";
 
 export function createInitialState() {
   const now = Date.now();
