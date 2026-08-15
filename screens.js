@@ -698,7 +698,9 @@ function step3(ctx) {
     const opts = [{ id: "enough", label: t.enoughLabel }, { id: "refine", label: t.refineLabel }];
     const choice = choiceRow(opts, state.step3Choice === "enough" ? "enough" : null, (id) => {
       if (id === "refine") {
-        state.testCount = 2; state.refine = true; state.step3Choice = null; ctx.update();
+        // Счётчик прогонов растёт только после самого прогона: доработанную
+        // цепочку игрок запускает заново и видит новый результат отдельно.
+        state.refine = true; state.step3Choice = null; ctx.update();
         ctx.storage.track("pilot_refine_selected", { band });
         ctx.back();   // возврат к инструментам, бюджет уже потрачен
         return;
@@ -715,7 +717,9 @@ function step3(ctx) {
   // Анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
   function runBuild() {
     ctx.storage.track("pilot_test_started", { set: [...state.tools.selected], testNo: state.testCount + 1 });
-    if (state.testCount === 0) { state.testCount = 1; state.tools.purchased = [...state.tools.selected]; ctx.update(); }
+    if (state.testCount === 0) state.tools.purchased = [...state.tools.selected];
+    state.testCount = Math.min(state.testCount + 1, 2);
+    ctx.update();
     const nodes = [...chainRow.querySelectorAll(".chain-node")];
     const reduce = typeof window !== "undefined" && window.matchMedia
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -805,8 +809,10 @@ function step3(ctx) {
   }
 
   renderChain();
-  if (state.testCount >= 1) {
-    // Тест уже запускали (в том числе после доработки) — показываем результат сразу.
+  // В раунде доработки нужен второй прогон: без него новый результат читался бы
+  // как продолжение старого экрана, а не как итог изменённой цепочки.
+  const runsDone = state.refine ? 2 : 1;
+  if (state.testCount >= runsDone) {
     chainRow.querySelectorAll(".chain-node").forEach((n) => n.classList.add("lit"));
     freeform ? showCustomResult() : showResult();
   } else {
