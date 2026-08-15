@@ -846,24 +846,26 @@ function step4(ctx) {
   wrap.appendChild(head);
   wrap.appendChild(el("p", { class: "reco-line" }, tc.text));
 
-  const body = el("div");                       // переключается: рекомендация ↔ полный список
+  const list = el("div", { class: "channel-list" });
   const reqBox = el("div", { class: "requirements" });
-  const msg = el("div", { class: "error", role: "alert" });
-  const foot = nav(ctx, {
-    nextLabel: t.button,
-    onNext: () => { if (!state.publishChannel) { msg.textContent = t.earlyAttempt; return; } ctx.next(); }
-  });
+  const foot = nav(ctx, { nextLabel: t.button });
 
   // Канал объясняем пользовательским сценарием, внутренние названия — вторым уровнем.
-  // В списке выбора это кнопка (доступна с клавиатуры), в рекомендации — просто карточка.
-  function channelCard(ch, selected, interactive) {
-    const props = { class: "channel-card" + (selected ? " selected" : ""), "data-id": ch.id };
-    if (interactive) { props.type = "button"; props["aria-pressed"] = selected ? "true" : "false"; }
-    return el(interactive ? "button" : "div", props,
+  function channelCard(ch) {
+    const selected = state.publishChannel === ch.id;
+    const card = el("button", {
+      type: "button",
+      class: "channel-card selectable" + (selected ? " selected" : ""),
+      "data-id": ch.id,
+      "aria-pressed": selected ? "true" : "false"
+    },
       el("div", { class: "channel-name" }, ch.name),
       el("div", { class: "channel-scenario" }, ch.scenario),
       el("div", { class: "channel-behind" }, t.behindLabel + ": " + ch.tools)
     );
+    if (ch.id === recoId) card.appendChild(el("span", { class: "channel-reco" }, t.recoLabel));
+    card.addEventListener("click", () => select(ch.id));
+    return card;
   }
 
   // Требования списком, без чекбоксов — не имитируем сделанную разработку.
@@ -877,44 +879,31 @@ function step4(ctx) {
     reqBox.appendChild(ul);
   }
 
-  let expanded = state.publishChannel && state.publishChannel !== recoId;
   function select(id) {
     state.publishChannel = id;
     ctx.update();
     ctx.storage.track("channel_selected", { channel: id, wasRecommended: tc.reco.includes(id) });
     ctx.storage.track("publication_selected", { channel: id, fit: content.publicationFitOf(state.task, id) });
-    msg.textContent = "";
     showRequirements(id);
-    renderBody();
+    renderList();
   }
 
-  function renderBody() {
-    body.innerHTML = "";
-    if (!expanded) {
-      // Рекомендация: предлагаем подходящий канал, игрок принимает одно решение.
-      body.appendChild(channelCard(content.channelById[recoId], state.publishChannel === recoId, false));
-      body.appendChild(el("div", { class: "channel-actions" },
-        el("button", { class: "primary wide", onclick: () => select(recoId) }, t.fits),
-        el("button", { class: "ghost wide", onclick: () => { expanded = true; renderBody(); } }, t.chooseOther)
-      ));
-    } else {
-      // Смена канала: открываются четыре варианта.
-      body.appendChild(el("div", { class: "legend" }, t.otherLabel));
-      const list = el("div", { class: "channel-list" });
-      for (const ch of content.channels) {
-        const card = channelCard(ch, state.publishChannel === ch.id, true);
-        card.classList.add("selectable");
-        card.addEventListener("click", () => select(ch.id));
-        list.appendChild(card);
-      }
-      body.appendChild(list);
-    }
+  function renderList() {
+    list.innerHTML = "";
+    for (const ch of content.channels) list.appendChild(channelCard(ch));
   }
 
-  renderBody();
-  if (state.publishChannel) showRequirements(state.publishChannel);
+  // Все четыре способа лежат рядом, рекомендованный выбран сразу: игрок сравнивает
+  // варианты глазами, а не открывает список ради того же выбора.
+  if (!state.publishChannel) {
+    state.publishChannel = recoId;
+    ctx.update();
+    ctx.storage.track("channel_defaulted", { channel: recoId });
+  }
+  renderList();
+  showRequirements(state.publishChannel);
 
-  wrap.append(body, reqBox, msg, foot);
+  wrap.append(list, reqBox, foot);
   return wrap;
 }
 

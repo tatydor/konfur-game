@@ -670,12 +670,9 @@ export const ui = {
     location: "каналы платформы",
     title: "Выбери способ запуска",
     intro: "Выбери, где будет работать решение: в твоём сервисе, отдельном чате или в фоне",
-    fits: "Выбрать этот способ",
-    chooseOther: "Посмотреть другие способы",
     behindLabel: "Основа",
-    otherLabel: "Способ запуска",
+    recoLabel: "Рекомендуем для этой задачи",
     requirementsLabel: "Что понадобится",
-    earlyAttempt: "Реши, как решение дойдёт до людей. Без этого пилот остаётся в песочнице.",
     button: "Запустить пилот →"
   },
   step5: {
@@ -830,7 +827,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.29";
+export const GAME_VERSION = "0.9.30";
 
 export function createInitialState() {
   const now = Date.now();
