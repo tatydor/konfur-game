@@ -647,7 +647,6 @@ export const ui = {
     question: "Что делать с результатом?",
     enoughLabel: "Принять",
     refineLabel: "Доработать",
-    refineDoneNote: "Одну доработку уже сделали, второй раунд в игре не проходим",
     // Разбор набора до запуска: пока ничего не потрачено, менять его бесплатно.
     precheckExtraTitle: "Что можно убрать",
     precheckExtraLead: "Эти инструменты не помогают проверить твою гипотезу:",
@@ -824,7 +823,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.20";
+export const GAME_VERSION = "0.9.21";
 
 export function createInitialState() {
   const now = Date.now();

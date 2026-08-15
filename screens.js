@@ -683,9 +683,19 @@ function step3(ctx) {
 
     ctx.storage.track("pilot_test_result", { band, set: [...active] });
 
-    // Достаточно / Доработать. Доработка доступна один раз (testCount < 2).
-    const opts = [{ id: "enough", label: t.enoughLabel }];
-    if (state.testCount < 2) opts.push({ id: "refine", label: t.refineLabel });
+    // Доработка доступна один раз (testCount < 2). Когда она потрачена, выбирать
+    // не из чего, поэтому результат принимаем сами: нажатие ничего не решало бы.
+    if (state.testCount >= 2) {
+      if (state.step3Choice !== "enough") {
+        state.step3Choice = "enough"; state.refine = false; ctx.update();
+        ctx.storage.track("test_decision", { decision: "enough", auto: true });
+      }
+      consequence.textContent = consequenceFor("refine");
+      setFoot(t.button, () => ctx.next(), false);
+      return;
+    }
+
+    const opts = [{ id: "enough", label: t.enoughLabel }, { id: "refine", label: t.refineLabel }];
     const choice = choiceRow(opts, state.step3Choice === "enough" ? "enough" : null, (id) => {
       if (id === "refine") {
         state.testCount = 2; state.refine = true; state.step3Choice = null; ctx.update();
@@ -694,13 +704,12 @@ function step3(ctx) {
         return;
       }
       state.step3Choice = "enough"; state.refine = false; ctx.update();
-      consequence.textContent = consequenceFor(state.testCount >= 2 ? "refine" : "enough");
+      consequence.textContent = consequenceFor("enough");
       footBtn.disabled = false;
       ctx.storage.track("test_decision", { decision: "enough" });
     });
     stage.appendChild(fieldset(t.question, choice));
-    if (state.testCount >= 2) stage.appendChild(el("p", { class: "gap-hint" }, t.refineDoneNote));
-    if (state.step3Choice === "enough") consequence.textContent = consequenceFor(state.testCount >= 2 ? "refine" : "enough");
+    if (state.step3Choice === "enough") consequence.textContent = consequenceFor("enough");
   }
 
   // Анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
