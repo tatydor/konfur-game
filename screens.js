@@ -1150,7 +1150,13 @@ function final(ctx) {
   }
   function onCopy() {
     // Метрика — доля дошедших, кто нажал копирование: одно событие на сессию.
-    if (!state.copied) { state.copied = true; ctx.update(); ctx.storage.track("summary_copied", {}); }
+    // Своей строкой, потому что сводка уходит раньше, при показе финала, и
+    // признак копирования в неё попасть не успевал.
+    if (!state.copied) {
+      state.copied = true; ctx.update();
+      ctx.storage.track("summary_copied", {});
+      ctx.storage.sendRow("copy", {});
+    }
     if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
       navigator.clipboard.writeText(shareText).then(() => flash(f.copyDone)).catch(() => flash(tryLegacy() ? f.copyDone : f.copyFail));
     } else {
@@ -1210,7 +1216,7 @@ function final(ctx) {
       if (!validFormat(val)) { setMsg(f.contactBadFormat, "error"); contactInput.focus(); return; }
       sending = true; sendBtn.disabled = true; setMsg(f.contactSending, "");
       state.contact = val; ctx.update();
-      ctx.storage.saveContact(val, { sessionId: state.runId, task: state.ownTaskText || task.title })
+      ctx.storage.saveContact(val, { ownTask: state.task === "own" ? state.ownTaskText.trim() : "" })
         .then(() => {
           state.contactSent = true; ctx.update();
           setMsg(f.contactOk, "ok"); sendBtn.textContent = f.contactSent;   // остаётся disabled — без дублей
@@ -1252,10 +1258,12 @@ function final(ctx) {
       state.shiftSent = true;
       ctx.update();
       ctx.storage.track("knows_after_answered", { value: id, before: state.awarenessBefore });
-      ctx.storage.submitForm({
-        kind: "shift", sessionId: state.runId, task: state.task,
-        answer1: id, payload: JSON.stringify({ before: state.awarenessBefore, after: id })
-      }).catch(() => { /* лучшее усилие */ });
+      // Оба ответа идут своими полями: сдвиг читается прямо в строке, без сверки
+      // с отдельной строкой сводки.
+      ctx.storage.sendRow("shift", {
+        awarenessBefore: state.awarenessBefore || "",
+        awarenessAfter: id
+      });
       shiftRow.querySelectorAll(".choice").forEach((b) => {
         b.classList.toggle("selected", b === btn);
         b.setAttribute("aria-pressed", b === btn ? "true" : "false");
@@ -1326,12 +1334,14 @@ function anketa(ctx) {
       ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
       // В форму — только ответы анкеты (kind=survey). Сводка прохождения уже ушла
       // при показе финала, эта строка связывается с ней по sessionId.
-      ctx.storage.submitForm({
-        kind: "survey", sessionId: state.runId, task: state.task,
+      // Первый вопрос предзаполнен выбором с шага 2, поэтому помечаем, тронул ли
+      // игрок это поле: нетронутое предзаполнение — не его ответ.
+      ctx.storage.sendRow("survey", {
         decision: state.finalVariant || state.step5Choice || "",
         answer1: answers[0], answer2: answers[1],
-        payload: JSON.stringify({ gaps: gapLabels, answers })
-      }).catch(() => { /* лучшее усилие */ });
+        gaps: state.tools.gaps.join(", "),
+        payload: JSON.stringify({ answer1Prefilled: Boolean(gapLabels) && answers[0] === gapLabels })
+      });
       done.style.display = "";
       restart.style.display = "";
     }

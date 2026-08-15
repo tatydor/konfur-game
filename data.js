@@ -830,7 +830,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.33";
+export const GAME_VERSION = "0.9.35";
 
 export function createInitialState() {
   const now = Date.now();
@@ -913,37 +913,61 @@ export const pathMap = [
 
 // Короткая сводка прохождения для формы: человекочитаемые названия выборов и
 // ответы анкеты. Контакт сюда не кладём — он идёт отдельной строкой (kind=contact).
-export function buildSummary(state, answers = []) {
+// В колонки идут идентификаторы, а не названия: они не зависят от копирайта и
+// типографики, поэтому одинаковый выбор всегда даёт одинаковое значение и
+// складывается в сводку. Человекочитаемые названия лежат рядом, в payload.
+//
+// Полей `awarenessAfter` и `copied` здесь нет намеренно: сводка уходит в момент
+// первого показа финала, а оба ответа игрок даёт позже на этом же экране, так
+// что в таблицу они попадали всегда пустыми. Теперь это отдельные строки
+// прохождения — `shift` и `copy`, обе связаны по sessionId.
+export function buildSummary(state) {
   const h = state.hypothesis;
-  const toolNames = (state.tools.selected.length ? state.tools.selected : [])
-    .map((id) => toolById[id]?.name).filter(Boolean);
-  const gaps = state.tools.gaps
-    .map((id) => gapOptions.find((g) => g.id === id)?.label).filter(Boolean);
-  // Критерий: в свободной ветке — что игрок назвал для наблюдения; в числовой — цель и выборка.
-  let criterion = "";
+  const toolIds = state.tools.selected.slice();
+  const gapIds = state.tools.gaps.slice();
+  const gapLabels = gapIds.map((id) => gapOptions.find((g) => g.id === id)?.label).filter(Boolean);
+
+  // Критерий разложен на три части: что улучшаем, насколько и на какой выборке.
+  // Склеенная строка «5 мин на 20 документах» читалась человеком, но не
+  // складывалась в сводку, потому что единица измерения пряталась внутри цели.
+  // В свободной ветке цели и выборки нет, поэтому заполняется только предмет
+  // наблюдения (идентификатор из watchOptions).
+  let metric = "", goal = "", sampleSize = "", criterion = "";
   if (h.freeform) {
+    metric = state.step5Watch || "";
     criterion = state.step5Watch === "own"
       ? (state.step5WatchOwn || "").trim()
       : (watchOptions.find((w) => w.id === state.step5Watch)?.short || "");
   } else {
+    metric = h.resultChoice || "";
+    goal = h.goalChoice || "";
+    sampleSize = h.sampleSize == null ? "" : String(h.sampleSize);
     const m = taskMetrics[state.task]?.[h.resultChoice];
-    const goal = m?.goals.find((g) => g.id === h.goalChoice);
-    if (goal) criterion = `${goal.targetShort} на ${h.sampleSize} ${taskMetrics[state.task]?.sampleUnit || "случаях"}`;
+    const g = m?.goals.find((x) => x.id === h.goalChoice);
+    if (g) criterion = `${g.targetShort} на ${h.sampleSize} ${taskMetrics[state.task]?.sampleUnit || "случаях"}`;
   }
+
   return {
-    sessionId: state.runId,
-    task: state.task,
     decision: state.finalVariant || state.step5Choice || "",
+    tools: toolIds.join(", "),
+    channel: state.publishChannel || "",
+    metric,
+    goal,
+    sampleSize,
+    gaps: gapIds.join(", "),
     awarenessBefore: state.awarenessBefore || "",
-    awarenessAfter: state.awarenessAfter || "",
-    tools: toolNames.join(", "),
-    channel: state.publishChannel ? (channelById[state.publishChannel]?.name || "") : "",
-    criterion,
-    gaps: gaps.join(", "),
-    answer1: answers[0] || "",
-    answer2: answers[1] || "",
-    copied: state.copied ? "yes" : "no",   // нажал ли «Скопировать итог» на финале
-    ts: Date.now()
+    // В payload остаётся только то, чего нет в колонках. Названия инструментов и
+    // канала отсюда убраны: они слово в слово повторяли колонки tools и channel.
+    // Подписи пропусков и фраза критерия остались, потому что по `no_builder` не
+    // догадаться, что это «Некому это собрать», а критерий собирает три колонки
+    // в ту самую формулировку, которую видел игрок.
+    payload: JSON.stringify({
+      freeform: h.freeform,
+      criterion,
+      gapLabels,
+      testCount: state.testCount,
+      refined: state.step3Choice === "refine"
+    })
   };
 }
 

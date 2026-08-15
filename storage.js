@@ -1,7 +1,7 @@
 // Изолированный слой хранения и событий.
 // Первая версия: пишет в localStorage и консоль, внешнего приёмника нет.
 // Экраны знают только про этот интерфейс — позже он переключится на сервер
-// без изменения экранов: track(event), saveContact(...), submitForm(...).
+// без изменения экранов: sendRow(kind, fields), track(event), saveContact(...).
 
 const PROGRESS_KEY = "konfur:progress"; // { screen, state }
 const EVENTS_KEY = "konfur:events";     // локальный журнал (когда внешнего приёмника нет)
@@ -9,12 +9,16 @@ const QUEUE_KEY = "konfur:queue";       // неотправленные собы
 const CONTACTS_KEY = "konfur:contacts"; // контакты и свободные тексты — отдельно от аналитики
 
 // Внешний приёмник — Google Форма (ответы копятся в связанной таблице).
-// Форма принимает две строки на игрока: контакт с запросом на разбор и короткую
-// сводку прохождения. Поток мелких событий остаётся локальным.
-// Пока адрес формы и id полей пустые — данные пишутся только локально.
-// Как заполнить — в docs/analytics-google-form.md.
+// Типы строк, все связаны идентификатором сессии: start (начал играть),
+// summary (дошёл до финала), drop (ушёл раньше), shift (ответ про сдвиг),
+// survey (анкета), contact (запрос на разбор), copy (скопировал итог).
+// Поток мелких событий остаётся локальным.
 const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeLUg_LiEYvZInkQw-tCBHvyJiCfZza4peXwEqo9nVpa82Seg/formResponse";
-const ENTRY = {                   // id полей формы (entry.XXXXXX)
+// id полей формы (entry.XXXXXX). Схема плоская: каждому полю данных свой вопрос,
+// поэтому таблица читается без разбора JSON. Поле с пустым id просто не уходит,
+// игра при этом работает, поэтому расширение формы можно катить постепенно.
+const ENTRY = {
+  // Поля, которые были в форме с самого начала.
   kind: "entry.1700049977",
   sessionId: "entry.1240554086",
   contact: "entry.1135647981",
@@ -22,7 +26,20 @@ const ENTRY = {                   // id полей формы (entry.XXXXXX)
   decision: "entry.1271929800",
   answer1: "entry.2057593413",
   answer2: "entry.1928953258",
-  payload: "entry.1535032346"
+  payload: "entry.1535032346",
+  // Поля плоской схемы, заведены 15.08.2026.
+  version: "entry.1679129709",
+  step: "entry.1662851955",
+  sinceStart: "entry.11666232",
+  tools: "entry.2046969967",
+  channel: "entry.1312724623",
+  metric: "entry.2008094919",
+  goal: "entry.188764951",
+  sampleSize: "entry.533013769",
+  gaps: "entry.874789817",
+  awarenessBefore: "entry.298316769",
+  awarenessAfter: "entry.1051964296",
+  ownTask: "entry.555579793"
 };
 
 // Непустая заглушка для пустых полей. Google Форма отклоняет всю запись целиком,
@@ -31,13 +48,21 @@ const ENTRY = {                   // id полей формы (entry.XXXXXX)
 // всегда отдаём непустое значение — запись уходит независимо от «обязательности».
 const FORM_EMPTY = "—";
 
+// Весь копирайт проходит типографскую обработку и приклеивает короткие предлоги
+// неразрывным пробелом (см. fixHangingWords в data.js). На экране это правильно,
+// а в таблице один и тот же ответ превращался в два разных значения, поэтому
+// перед отправкой возвращаем обычный пробел.
+function forSheet(value) {
+  return String(value).replace(/ /g, " ").trim();
+}
+
 // Строка формы: каждому вопросу непустое значение (см. FORM_EMPTY выше).
 function formParams(fields) {
   const params = new URLSearchParams();
   for (const [key, entryId] of Object.entries(ENTRY)) {
     if (!entryId) continue;
     const raw = fields[key];
-    const val = (raw == null || String(raw).trim() === "") ? FORM_EMPTY : String(raw);
+    const val = (raw == null || forSheet(raw) === "") ? FORM_EMPTY : forSheet(raw);
     params.append(entryId, val);
   }
   return params;
@@ -45,7 +70,7 @@ function formParams(fields) {
 
 // Отправка одной строки в Google Форму. Кодировка формы — «простой» запрос,
 // поэтому предзапроса CORS нет; ответ непрозрачный (no-cors), сбой сети ловим.
-export function submitForm(fields) {
+function submitForm(fields) {
   if (!FORM_URL || typeof fetch === "undefined") return Promise.reject(new Error("no form"));
   return fetch(FORM_URL, {
     method: "POST",
@@ -58,7 +83,7 @@ export function submitForm(fields) {
 // Отправка на выходе со страницы: обычный запрос браузер успевает отменить,
 // поэтому здесь sendBeacon — он переживает закрытие вкладки. URLSearchParams
 // уходит с тем же типом содержимого, что и обычная отправка формы.
-export function submitFormBeacon(fields) {
+function submitFormBeacon(fields) {
   if (!FORM_URL) return false;
   const params = formParams(fields);
   if (typeof navigator !== "undefined" && navigator.sendBeacon) {
@@ -71,6 +96,39 @@ export function submitFormBeacon(fields) {
 // провайдер контекста (анонимный sessionId, задача, шаг, время сессии и шага).
 let cfg = { version: "0", context: () => ({}) };
 export function configure(next) { cfg = { ...cfg, ...next }; }
+
+// Единственная точка отправки строки в форму. Общие поля (тип строки, сессия,
+// версия сборки, задача, шаг, время с начала) подставляются сами, поэтому все
+// строки сопоставимы между собой и версию сборки несёт каждая, а не только уход.
+// Время отдаём в секундах: в таблице его читают глазами, миллисекунды мешают.
+export function sendRow(kind, fields = {}, { beacon = false } = {}) {
+  let common = {};
+  try { common = cfg.context() || {}; } catch { common = {}; }
+  const row = {
+    kind,
+    sessionId: common.sessionId || "",
+    version: cfg.version,
+    task: common.task || "",
+    step: common.step || "",
+    sinceStart: common.sinceStart != null ? Math.round(common.sinceStart / 1000) : "",
+    ...fields
+  };
+  // Поле, для которого в форме ещё нет своего вопроса, уходит внутрь payload.
+  // Так расширение формы можно катить постепенно и ничего не терять по дороге:
+  // без этого строка ушла бы с пустыми колонками.
+  const pending = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (key === "payload" || ENTRY[key]) continue;
+    if (value !== "" && value != null) pending[key] = value;
+  }
+  if (Object.keys(pending).length) {
+    let base = {};
+    try { base = row.payload ? JSON.parse(row.payload) : {}; } catch { base = { payload: row.payload }; }
+    row.payload = JSON.stringify({ ...base, ...pending });
+  }
+  if (beacon) return submitFormBeacon(row);
+  return submitForm(row).catch(() => { /* лучшее усилие, прохождение не блокируем */ });
+}
 
 // Тип устройства и размер окна в обобщённом виде.
 function deviceInfo() {
@@ -158,11 +216,14 @@ export function saveContact(contact, meta = {}) {
     const ok = safeSet(CONTACTS_KEY, JSON.stringify(list));
     track("contact_submitted", { ok });
     // Контакт с запросом на разбор — отдельной строкой в форму (kind=contact).
+    // Свой текст задачи идёт своим полем: раньше он подставлялся в колонку task
+    // и ломал разбор по задачам, потому что там оказывался произвольный текст.
     if (ok) {
-      submitForm({
-        kind: "contact", sessionId: meta.sessionId || "", contact,
-        task: meta.task || "", payload: JSON.stringify(row)
-      }).catch(() => { /* лучшее усилие, локальная копия уже сохранена */ });
+      sendRow("contact", {
+        contact,
+        ownTask: meta.ownTask || "",
+        payload: JSON.stringify({ ts: row.ts })
+      });
     }
     return ok ? Promise.resolve({ ok: true }) : Promise.reject(new Error("storage unavailable"));
   } catch (e) {

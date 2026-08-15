@@ -70,12 +70,16 @@ function persist() {
 function sendSummary() {
   if (state.summarySent) return;
   state.summarySent = true;
-  const summary = content.buildSummary(state, []);
   persist();
-  storage.submitForm({
-    kind: "summary", sessionId: state.runId, task: state.task,
-    decision: summary.decision, payload: JSON.stringify(summary)
-  }).catch(() => { /* лучшее усилие, прохождение не блокируем */ });
+  storage.sendRow("summary", content.buildSummary(state));
+}
+
+// Начало прохождения: без этой строки в таблице нет знаменателя воронки, потому
+// что видно только дошедших и ушедших, а сколько человек начали — неизвестно.
+// Момент выбран на переходе к первому шагу: задача уже выбрана, случайные
+// открытия страницы в счёт не идут.
+function sendStart() {
+  storage.sendRow("start", {});
 }
 
 // Игрок ушёл, не дойдя до финала: короткая строка с последним шагом. Это
@@ -84,14 +88,9 @@ let dropSent = false;
 function sendDrop() {
   if (dropSent || state.summarySent || state.status !== "started") return;
   dropSent = true;
-  storage.submitFormBeacon({
-    kind: "drop", sessionId: state.runId, task: state.task,
-    answer1: screen,
-    payload: JSON.stringify({
-      step: screen, stepNo: stepNoMap[screen] || null,
-      sinceStart: Date.now() - state.createdAt, version: GAME_VERSION
-    })
-  });
+  storage.sendRow("drop", {
+    payload: JSON.stringify({ stepNo: stepNoMap[screen] || null })
+  }, { beacon: true });
 }
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", sendDrop);
@@ -128,7 +127,10 @@ function go(id, dir) {
   state.updatedAt = Date.now();
   state.stepStartedAt = Date.now();
   if (id !== flow[0] && state.status === "new") state.status = "started";
-  if (from === "step0" && id === "step1" && wasNew) storage.track("game_started", { taskId: state.task });
+  if (from === "step0" && id === "step1" && wasNew) {
+    storage.track("game_started", { taskId: state.task });
+    sendStart();
+  }
   if (id === "final") state.status = "finished";
   resuming = false;
   persist();
