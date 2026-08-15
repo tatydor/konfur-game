@@ -296,6 +296,21 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .stage { margin: 6px 0; }
 .building { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 14px 0; }
 
+/* Шаг 3: сцена вокруг цепочки. Линии в макете шире колонки и уходят за края,
+   поэтому рисункам даём отрицательные поля на величину отступа страницы. */
+.test-scene { position: relative; margin: 10px 0 0; }
+.test-art { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))); }
+.test-art svg { display: block; width: 100%; height: auto; }
+.test-art-under { margin-top: 2px; }
+/* Реплика стоит справа от фигуры: человек занимает середину рисунка, поэтому
+   отсчитываем от его правого края в долях ширины сцены. */
+.test-say {
+  position: absolute; left: 62%; right: 0; top: 10%; margin: 0;
+  font-family: var(--font-display); font-weight: 600; line-height: 1.25;
+  font-size: clamp(0.82rem, 3.4vw, 1rem); color: var(--muted);
+  animation: fade 0.25s ease;
+}
+
 /* Шаг 3: собранная цепочка инструментов */
 /* Сетка равных колонок вместо гибкой строки: плашки одной ширины, а на узком
    экране цепочка переносится рядами и последняя плашка не растягивается. */

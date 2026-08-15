@@ -642,6 +642,7 @@ export const ui = {
     title: "Проверь решение",
     intro: "Запусти собранную цепочку на реальном примере и посмотри, как она работает",
     buildButton: "Запустить тест",
+    humanLine: "Опа! Мы и такое выпускаем?",
     buildingText: "Прогоняем на реальном случае",
     resultLabel: "Результат теста",
     contributionsLabel: "Роль инструментов",
@@ -825,7 +826,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.25";
+export const GAME_VERSION = "0.9.26";
 
 export function createInitialState() {
   const now = Date.now();

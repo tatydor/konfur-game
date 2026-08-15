@@ -5,6 +5,7 @@
 import { el, tpl } from "./dom.js";
 import { resetDependentOnTask, buildHypothesis, buildHypothesisParts, buildShareText } from "./data.js";
 import { taskIcons } from "./task-icons.js";
+import { testScene } from "./test-scene.js";
 
 const HYP_MAX = 220;      // предел длины гипотезы
 const WATCH_OWN_MAX = 80; // название метрики в свободной ветке — короткое
@@ -621,6 +622,13 @@ function step3(ctx) {
     });
   }
 
+  // Сцена вокруг цепочки: человек с линией сверху и линия снизу. Рисунки
+  // декоративные и скрыты от скринридера, реплика остаётся обычным текстом.
+  const say = el("p", { class: "test-say", hidden: true }, t.humanLine);
+  const scene = el("div", { class: "test-scene" },
+    el("div", { class: "test-art", "aria-hidden": "true", html: testScene.humanWithLine }), say);
+  const lineUnder = el("div", { class: "test-art test-art-under", "aria-hidden": "true", html: testScene.lineUnder });
+
   const stage = el("div", { class: "stage" });
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   // Главное действие шага живёт внизу, как на остальных шагах: до теста это
@@ -645,6 +653,7 @@ function step3(ctx) {
       el("div", { class: "legend" }, t.resultLabel),
       el("div", { class: "callout" }, t.customResult)
     ));
+    say.hidden = false;
     setFoot(t.button, () => ctx.next(), false);
   }
 
@@ -657,6 +666,7 @@ function step3(ctx) {
     const out = sc.outcomes[band];
 
     stage.innerHTML = "";
+    say.hidden = false;
     setFoot(t.button, () => ctx.next(), state.step3Choice !== "enough");
     stage.appendChild(el("div", { class: "field" },
       el("div", { class: "legend" }, t.resultLabel),
@@ -819,7 +829,7 @@ function step3(ctx) {
     showPrecheck();
   }
 
-  wrap.append(chainRow, stage, consequence, foot);
+  wrap.append(scene, chainRow, lineUnder, stage, consequence, foot);
   return wrap;
 }
 

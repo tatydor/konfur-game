@@ -14,7 +14,7 @@
     // (GitHub Pages отдаёт их с max-age=600, то есть до 10 минут старую копию).
     // Шрифты (.woff2) не версионируем — они не меняются и весят много.
     (function () {
-      var V = "0.9.25";
+      var V = "0.9.26";
       window.__BUILD_V = V;
       var head = document.head;
       function link(href) {
@@ -26,7 +26,7 @@
       // Карта импортов: относительные модули отдаются с версией. Ключ и импорт
       // резолвятся в один абсолютный адрес, поэтому подхватываются и вложенные
       // импорты (screens.js → data.js и т.д.) — сам код менять не нужно.
-      var mods = ["app.js", "data.js", "screens.js", "storage.js", "dom.js", "intro.js", "intro-assets.js", "task-icons.js"];
+      var mods = ["app.js", "data.js", "screens.js", "storage.js", "dom.js", "intro.js", "intro-assets.js", "task-icons.js", "test-scene.js"];
       var imports = {};
       mods.forEach(function (m) { imports["./" + m] = "./" + m + "?v=" + V; });
       var im = document.createElement("script");
