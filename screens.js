@@ -973,7 +973,12 @@ function step5Numeric(ctx, wrap, taskLabel) {
 
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
   const foot = nav(ctx, { nextLabel: t.button, disabled: !state.step5Choice });
-  if (state.step5Choice) consequence.textContent = content.step5Consequence[state.step5Choice];
+  // У масштабирования текст зависит от уровня результата, у остальных решений один.
+  const step5Text = (id) => {
+    const c = content.step5Consequence[id];
+    return typeof c === "string" ? c : c[effBand];
+  };
+  if (state.step5Choice) consequence.textContent = step5Text(state.step5Choice);
 
   const choice = choiceRow(
     [{ id: "fix", label: t.fixLabel }, { id: "scale", label: t.scaleLabel }, { id: "stop", label: t.stopLabel }],
@@ -982,7 +987,7 @@ function step5Numeric(ctx, wrap, taskLabel) {
       state.step5Choice = id;
       state.finalVariant = id;   // решение определяет вариант финала (раздел 13)
       ctx.update();
-      consequence.textContent = content.step5Consequence[id];
+      consequence.textContent = step5Text(id);
       foot.querySelector(".primary").disabled = false;
       ctx.storage.track("monitor_decision", { decision: id });
       ctx.storage.track("observation_decision", { decision: id });
@@ -1235,11 +1240,11 @@ function final(ctx) {
 
   // ── Повтор входного вопроса: измеряет сдвиг в понимании у всех дошедших, а не
   // только у заполнивших анкету. Одна строка, два ответа, своя строка в форме.
-  const shiftRow = el("div", { class: "choices" });
+  const shiftRow = el("div", { class: "choices toggle" });
   const shiftDone = el("span", { class: "shift-done", role: "status", "aria-live": "polite" });
   [["yes", f.awarenessYes], ["no", f.awarenessNo]].forEach(([id, label]) => {
     const btn = el("button", {
-      class: "choice small" + (state.awarenessAfter === id ? " selected" : ""),
+      class: "choice toggle" + (state.awarenessAfter === id ? " selected" : ""),
       type: "button",
       "aria-pressed": state.awarenessAfter === id ? "true" : "false"
     }, label);
@@ -1266,8 +1271,10 @@ function final(ctx) {
     shiftRow.querySelectorAll(".choice").forEach((b) => { b.disabled = true; });
     shiftDone.textContent = f.awarenessThanks;
   }
+  // Блок собран теми же классами, что и вопрос на входном экране: подпись сверху
+  // и пара кнопок-карточек, чтобы повтор вопроса читался как тот же самый.
   wrap.appendChild(el("div", { class: "final-shift" },
-    el("p", { class: "shift-question" }, f.awarenessRepeat), shiftRow, shiftDone));
+    fieldset(f.awarenessRepeat, shiftRow, "section-label"), shiftDone));
 
   // ── Переход в анкету: вторичное текстовое действие, не primary и без «Назад».
   // Финал остаётся терминальным состоянием игры, поэтому nav() тут не используем.
