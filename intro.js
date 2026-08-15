@@ -105,7 +105,16 @@ export function mountIntro(root, { content, reducedMotion = false, onStart }) {
     stopStream();
     overlay.classList.add("is-gone");
     // Даём заставке доиграть исчезновение, затем убираем и отдаём ход игре.
-    const swap = () => { overlay.remove(); onStart(); };
+    // Ход отдаём ровно один раз: исчезновение длится 0,36 секунды, страховочный
+    // таймер срабатывает через 0,42, поэтому без флага игра получала управление
+    // дважды и входной экран собирался заново поверх только что собранного.
+    let swapped = false;
+    const swap = () => {
+      if (swapped) return;
+      swapped = true;
+      overlay.remove();
+      onStart();
+    };
     overlay.addEventListener("transitionend", swap, { once: true });
     window.setTimeout(swap, 420); // страховка, если transitionend не придёт
   }

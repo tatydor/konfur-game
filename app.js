@@ -78,13 +78,25 @@ function sendSummary() {
 // что видно только дошедших и ушедших, а сколько человек начали — неизвестно.
 // Момент выбран на переходе к первому шагу: задача уже выбрана, случайные
 // открытия страницы в счёт не идут.
+// Метку QR-кода несёт именно эта строка: раньше она попадала только в локальное
+// событие открытия страницы и до таблицы не доходила, поэтому вопрос «какой
+// постер привёл людей» оставался без данных.
 function sendStart() {
-  storage.sendRow("start", {});
+  storage.sendRow("start", qrSource ? { payload: JSON.stringify({ qrSource }) } : {});
 }
 
 // Игрок ушёл, не дойдя до финала: короткая строка с последним шагом. Это
 // единственный способ увидеть на стенде, где игра теряет людей.
+//
+// Строка уходит при закрытии вкладки (pagehide) и после того, как страницу
+// надолго спрятали. Раньше уходом считалось любое скрытие вкладки, поэтому
+// взгляд на уведомление или блокировка экрана давали строку об уходе у человека,
+// который потом спокойно доходил до финала: в таблице он оказывался сразу и
+// ушедшим, и дошедшим. Задержка в полторы минуты оставляет тот случай, ради
+// которого строка и нужна: телефон убрали и к игре не вернулись.
+const HIDDEN_DROP_DELAY = 90000;
 let dropSent = false;
+let hiddenTimer = null;
 function sendDrop() {
   if (dropSent || state.summarySent || state.status !== "started") return;
   dropSent = true;
@@ -95,7 +107,8 @@ function sendDrop() {
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", sendDrop);
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") sendDrop();
+    clearTimeout(hiddenTimer);
+    if (document.visibilityState === "hidden") hiddenTimer = setTimeout(sendDrop, HIDDEN_DROP_DELAY);
   });
 }
 
@@ -103,9 +116,7 @@ if (typeof window !== "undefined") {
 function trackEntry(id) {
   if (stepNoMap[id]) storage.track("step_viewed", { step: id, stepNo: stepNoMap[id] });
   else if (id === "final") {
-    const variant = state.finalVariant || state.step5Choice;
-    storage.track("final_viewed", { variant });
-    storage.track("final_screen_viewed", { variant });
+    storage.track("final_viewed", { variant: state.finalVariant || state.step5Choice });
     sendSummary();
   }
   else if (id === "anketa") storage.track("survey_opened");
@@ -150,6 +161,11 @@ function restart() {
   state = createInitialState();
   screen = flow[0];
   resuming = false;
+  // Новое прохождение снова может закончиться уходом. Без сброса флага на стенде
+  // фиксировался уход только у первого игрока, а у всех, кому передали планшет
+  // кнопкой «Начать сначала», уход терялся.
+  dropSent = false;
+  clearTimeout(hiddenTimer);
   storage.clearProgress();
   storage.track("game_restarted", { prevStatus });
   render();
@@ -228,10 +244,16 @@ function render() {
 }
 
 // Обрыв связи: прогресс уже сохранён локально, показываем спокойный баннер.
-const offlineBar = el("div", { class: "offline-bar" }, content.system.offline);
+// Спрятанная плашка сдвинута за нижний край страницы обычным преобразованием,
+// поэтому для скринридера она оставалась на месте и читалась при рабочей связи.
+// Теперь видимость плашки и её доступность переключаются вместе, а role="status"
+// проговаривает обрыв в тот момент, когда он случился.
+const offlineBar = el("div", { class: "offline-bar", role: "status", "aria-hidden": "true" }, content.system.offline);
 document.body.appendChild(offlineBar);
 function updateOnline() {
-  offlineBar.classList.toggle("show", typeof navigator !== "undefined" && navigator.onLine === false);
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  offlineBar.classList.toggle("show", offline);
+  offlineBar.setAttribute("aria-hidden", offline ? "false" : "true");
 }
 window.addEventListener("online", updateOnline);
 window.addEventListener("offline", updateOnline);

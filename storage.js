@@ -1,12 +1,18 @@
-// Изолированный слой хранения и событий.
-// Первая версия: пишет в localStorage и консоль, внешнего приёмника нет.
-// Экраны знают только про этот интерфейс — позже он переключится на сервер
-// без изменения экранов: sendRow(kind, fields), track(event), saveContact(...).
+// Изолированный слой хранения и отправки.
+// В localStorage живёт только прогресс прохождения: он нужен, чтобы вернуть
+// человека на тот же шаг. Строки прохождения уходят в Google Форму, мелкие
+// события остаются в консоли и никуда не записываются.
+// Экраны знают только про этот интерфейс: sendRow(kind, fields), track(event),
+// saveContact(...).
 
 const PROGRESS_KEY = "konfur:progress"; // { screen, state }
-const EVENTS_KEY = "konfur:events";     // локальный журнал (когда внешнего приёмника нет)
-const QUEUE_KEY = "konfur:queue";       // неотправленные события — ждут связи
-const CONTACTS_KEY = "konfur:contacts"; // контакты и свободные тексты — отдельно от аналитики
+
+// Ключи прежних версий: локальный журнал событий, очередь к нему и список
+// контактов. Журнал никто не читал и рос без предела, контакты копились на
+// устройстве стенда. Чистим их один раз при загрузке, чтобы на планшетах,
+// где игра уже работала, не оставалось ни почт участников, ни мегабайтов
+// мёртвых записей.
+const LEGACY_KEYS = ["konfur:events", "konfur:queue", "konfur:contacts"];
 
 // Внешний приёмник — Google Форма (ответы копятся в связанной таблице).
 // Типы строк, все связаны идентификатором сессии: start (начал играть),
@@ -101,7 +107,9 @@ export function configure(next) { cfg = { ...cfg, ...next }; }
 // версия сборки, задача, шаг, время с начала) подставляются сами, поэтому все
 // строки сопоставимы между собой и версию сборки несёт каждая, а не только уход.
 // Время отдаём в секундах: в таблице его читают глазами, миллисекунды мешают.
-export function sendRow(kind, fields = {}, { beacon = false } = {}) {
+// strict: вернуть ошибку отправки вызывающему. Нужно там, где человеку показывают
+// результат отправки (контакт на финале); остальные строки уходят «лучшим усилием».
+export function sendRow(kind, fields = {}, { beacon = false, strict = false } = {}) {
   let common = {};
   try { common = cfg.context() || {}; } catch { common = {}; }
   const row = {
@@ -127,7 +135,9 @@ export function sendRow(kind, fields = {}, { beacon = false } = {}) {
     row.payload = JSON.stringify({ ...base, ...pending });
   }
   if (beacon) return submitFormBeacon(row);
-  return submitForm(row).catch(() => { /* лучшее усилие, прохождение не блокируем */ });
+  const sending = submitForm(row);
+  if (strict) return sending;
+  return sending.catch(() => { /* лучшее усилие, прохождение не блокируем */ });
 }
 
 // Тип устройства и размер окна в обобщённом виде.
@@ -167,67 +177,35 @@ export function clearProgress() {
   safeRemove(PROGRESS_KEY);
 }
 
-// ── События: каждое несёт общие параметры и не содержит ничего личного ──
-// В первой версии — консоль + локальный журнал. Позже — внешний приёмник.
-// Ошибка записи события не роняет игру и не блокирует прохождение.
-function readList(key) {
-  const raw = safeGet(key);
-  try { return raw ? JSON.parse(raw) : []; } catch { return []; }
-}
-
-// Поток событий копится в локальном журнале. Пока связь есть — переносим очередь
-// в журнал, офлайн — оставляем в очереди до восстановления связи.
-function flushQueue() {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-  const queue = readList(QUEUE_KEY);
-  if (!queue.length) return;
-  try {
-    const sent = readList(EVENTS_KEY);
-    sent.push(...queue);
-    if (safeSet(EVENTS_KEY, JSON.stringify(sent))) safeRemove(QUEUE_KEY);
-  } catch { /* журнал недоступен — очередь остаётся до следующей попытки */ }
-}
-
+// ── Мелкие события: только консоль ──────────────────────────────────────────
+// Раньше поток событий копился в localStorage двумя массивами, которые никто не
+// читал и не отправлял: за прохождение набегало около шести килобайт, а на
+// устройстве стенда это со временем упиралось в квоту и ломало сохранение
+// прогресса. Всё, что нужно для разбора прохождения, уходит строками в форму,
+// поэтому событию достаточно консоли: она помогает на отладке и ничего не копит.
 export function track(event, params = {}) {
   let common = {};
   try { common = cfg.context() || {}; } catch { common = {}; }
   const record = { event, ts: Date.now(), version: cfg.version, ...common, ...deviceInfo(), ...params };
   try { if (typeof console !== "undefined") console.debug("[track]", event, record); } catch { /* ничего */ }
-  try {
-    const queue = readList(QUEUE_KEY);
-    queue.push(record);
-    safeSet(QUEUE_KEY, JSON.stringify(queue));
-  } catch { /* очередь недоступна — молча пропускаем, прохождение не трогаем */ }
-  flushQueue();
 }
 
-// После восстановления связи очередь уходит без участия игрока.
-if (typeof window !== "undefined") window.addEventListener("online", flushQueue);
-
-// ── Контакт и свободный текст задачи: хранятся отдельно от анонимной аналитики.
-// В общую аналитику уходит только признак успеха, без самого контакта.
+// ── Контакт: запрос на разбор задачи после игры ──────────────────────────────
+// На устройстве не остаётся ничего: почту и ник в браузере не храним, потому что
+// игра живёт на общем планшете стенда. Ответ обещаем только после того, как
+// запрос ушёл: подтверждение по факту записи в браузер обманывало человека при
+// оборванной связи. Прочитать статус ответа формы нельзя (запрос уходит в режиме
+// no-cors), поэтому успехом считаем сам факт отправки, а сбой сети виден.
 export function saveContact(contact, meta = {}) {
-  try {
-    const raw = safeGet(CONTACTS_KEY);
-    let list = [];
-    try { list = raw ? JSON.parse(raw) : []; } catch { list = []; }
-    const row = { ts: Date.now(), contact, ...meta };
-    list.push(row);
-    const ok = safeSet(CONTACTS_KEY, JSON.stringify(list));
-    track("contact_submitted", { ok });
-    // Контакт с запросом на разбор — отдельной строкой в форму (kind=contact).
-    // Свой текст задачи идёт своим полем: раньше он подставлялся в колонку task
-    // и ломал разбор по задачам, потому что там оказывался произвольный текст.
-    if (ok) {
-      sendRow("contact", {
-        contact,
-        ownTask: meta.ownTask || "",
-        payload: JSON.stringify({ ts: row.ts })
-      });
-    }
-    return ok ? Promise.resolve({ ok: true }) : Promise.reject(new Error("storage unavailable"));
-  } catch (e) {
-    track("contact_submitted", { ok: false });
-    return Promise.reject(e);
-  }
+  return sendRow("contact", {
+    contact,
+    ownTask: meta.ownTask || "",
+    payload: JSON.stringify({ ts: Date.now() })
+  }, { strict: true }).then(
+    () => { track("contact_submitted", { ok: true }); return { ok: true }; },
+    (e) => { track("contact_submitted", { ok: false }); throw e; }
+  );
 }
+
+// Разовая уборка ключей прежних версий (см. LEGACY_KEYS).
+LEGACY_KEYS.forEach(safeRemove);

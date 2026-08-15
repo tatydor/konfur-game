@@ -265,8 +265,11 @@ export function metricDefaults(taskId) {
 }
 
 // Части гипотезы, чтобы экран мог подсветить подставляемые фрагменты.
+// Текст игрока подставляем функцией замены: строковая замена трактует сочетания
+// вроде $& и $' как служебные, поэтому своя задача с ними теряла часть текста и
+// показывала на экране кусок шаблона.
 export function buildHypothesisParts(taskId, resultId, goalId, sampleSize, ownTaskText = "") {
-  const action = (taskAction[taskId] || "внедрим решение").replace("{ownTaskText}", ownTaskText);
+  const action = (taskAction[taskId] || "внедрим решение").replace("{ownTaskText}", () => ownTaskText);
   const m = taskMetrics[taskId]?.[resultId];
   const goal = m?.goals.find((g) => g.id === goalId) || m?.goals[0];
   const unit = taskMetrics[taskId]?.sampleUnit || "случаях";
@@ -320,15 +323,6 @@ export const taskTools = {
   contract:  { reco: ["ocr", "llm", "rag"], alt: ["dify", "mcp"] },
   own:       { reco: ["llm", "rag", "dify"], alt: ["ner", "ocr"] }
 };
-
-// Шаг 2: блок «чего не хватило» — tools.gaps
-export const gapOptions = [
-  { id: "no_model",       label: "Нужной модели нет в списке" },
-  { id: "no_integration", label: "Нет интеграции с нашей системой" },
-  { id: "price",          label: "Непонятно, сколько это стоит" },
-  { id: "no_builder",     label: "Некому это собрать" },
-  { id: "security",       label: "Не хватает ясности про безопасность данных" }
-];
 
 export const step3Consequence = {
   enough: "Оставляем как есть. Правильное решение, если ошибку ловит человек на следующем шаге. Опасное, если не ловит никто.",
@@ -635,7 +629,17 @@ export const ui = {
     allToolsToggle: "Показать все 10 инструментов",
     collapseToolsLabel: "Свернуть инструменты",
     emptyChainError: "Собери хотя бы один инструмент, иначе проверять нечего.",
-    gapsTitle: "Не нашёлся нужный инструмент? Отметь, чего не хватает",
+    // Чего не хватило: свободный текст вместо готовых вариантов. Прежний список
+    // называл причины вокруг задачи (цена, некому собрать), поэтому человек
+    // отмечал ближайший неподходящий пункт и до команды платформы не доходило
+    // главное — какого инструмента ему не хватило.
+    gapsLink: "Не нашёлся нужный инструмент? Напиши, какого не хватает",
+    gapsLinkFilled: "Изменить, какого инструмента не хватает",
+    gapsModalTitle: "Какого инструмента не хватает",
+    gapsModalIntro: "Опиши своими словами, что нужно для твоей задачи. Ответы читает команда платформы",
+    gapsPlaceholder: "например, распознавание речи по телефонным записям",
+    modalCancel: "Отмена",
+    modalSave: "Сохранить",
     refineBanner: "Доработка пилота. Поменяй цепочку в рамках бюджета: снятый инструмент возвращает свои баллы.",
     refineButton: "Проверить снова →",
     button: "Проверить решение →"
@@ -794,7 +798,6 @@ export const final = {
   awarenessRepeat: "Теперь знаешь, с чего начать такой пилот?",
   awarenessYes: "Да",
   awarenessNo: "Нет",
-  awarenessThanks: "Спасибо",
   toAnketa: "Ответить на два вопроса →",
   restart: "Начать сначала",
   restartConfirm: "Точно начать сначала? Код подарка пропадёт"
@@ -830,7 +833,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.35";
+export const GAME_VERSION = "0.9.36";
 
 export function createInitialState() {
   const now = Date.now();
@@ -852,7 +855,7 @@ export function createInitialState() {
     },
     tools: {
       selected: [],      // активная цепочка (activeToolIds) — id из tools
-      gaps: [],          // id из gapOptions
+      gapsText: "",      // чего не хватило среди инструментов, своими словами
       testedSet: []      // набор, на котором прошёл последний тест
     },
     testCount: 0,        // сколько раз запускали проверку: 0 | 1 | 2 (макс одна доработка)
@@ -864,11 +867,15 @@ export function createInitialState() {
     step5WatchOwn: "",   // текст, если выбрано "own"
     finalVariant: null,  // вычисляется из step5Choice, в свободной ветке "watch"
     awarenessAfter: null, // ответ на финале: "yes" | "no"
-    contact: "",         // необязательно
+    // Самого контакта в состоянии нет: почта уходит прямо в форму и в браузере
+    // общего планшета не остаётся. Здесь только признак, что его уже оставили.
     contactSent: false,  // контакт уже отправлен — не спрашиваем повторно
     copied: false,       // нажал ли «Скопировать итог» на финале (для сводки/метрики)
     summarySent: false,  // сводка прохождения уже ушла в форму (шлётся при показе финала)
     shiftSent: false,    // ответ про сдвиг уже ушёл в форму
+    surveySent: false,   // анкета уже отправлена: живёт в состоянии, а не в экране,
+                         // иначе возврат на финал и повторный вход в анкету
+                         // отправляли вторую строку от того же прохождения
     createdAt: now,
     updatedAt: now,
     stepStartedAt: now
@@ -879,7 +886,7 @@ export function createInitialState() {
 // чтобы новая ветка не наследовала гипотезу, инструменты и решения старой.
 export function resetDependentOnTask(state) {
   state.hypothesis = { finalText: "", freeform: false, customText: "", resultChoice: null, goalChoice: null, sampleSize: null };
-  state.tools = { selected: [], gaps: [], testedSet: [] };
+  state.tools = { selected: [], gapsText: "", testedSet: [] };
   state.testCount = 0;
   state.refine = false;
   state.step3Choice = null;
@@ -924,8 +931,6 @@ export const pathMap = [
 export function buildSummary(state) {
   const h = state.hypothesis;
   const toolIds = state.tools.selected.slice();
-  const gapIds = state.tools.gaps.slice();
-  const gapLabels = gapIds.map((id) => gapOptions.find((g) => g.id === id)?.label).filter(Boolean);
 
   // Критерий разложен на три части: что улучшаем, насколько и на какой выборке.
   // Склеенная строка «5 мин на 20 документах» читалась человеком, но не
@@ -954,17 +959,16 @@ export function buildSummary(state) {
     metric,
     goal,
     sampleSize,
-    gaps: gapIds.join(", "),
+    // В колонке gaps теперь живёт написанное человеком, а не набор кодов.
+    gaps: (state.tools.gapsText || "").trim(),
     awarenessBefore: state.awarenessBefore || "",
     // В payload остаётся только то, чего нет в колонках. Названия инструментов и
     // канала отсюда убраны: они слово в слово повторяли колонки tools и channel.
-    // Подписи пропусков и фраза критерия остались, потому что по `no_builder` не
-    // догадаться, что это «Некому это собрать», а критерий собирает три колонки
-    // в ту самую формулировку, которую видел игрок.
+    // Фраза критерия осталась, потому что она собирает три колонки в ту самую
+    // формулировку, которую видел игрок.
     payload: JSON.stringify({
       freeform: h.freeform,
       criterion,
-      gapLabels,
       testCount: state.testCount,
       refined: state.step3Choice === "refine"
     })
@@ -1019,7 +1023,7 @@ export function buildShareText(state) {
   const resultShort = key ? final.variants[key]?.resultShort : null;
   const decision = key ? final.decisionLabels[key] : null;
 
-  const lines = [final.shareTitleTemplate.replace("{task}", label), ""];
+  const lines = [final.shareTitleTemplate.replace("{task}", () => label), ""];
   lines.push(`${final.cardHypothesisLabel}: ${hyp}`, "");
   if (toolNames.length) lines.push(`${final.cardToolsLabel}: ${toolNames.join(", ")}`);
   if (channel) lines.push(`${final.cardChannelLabel}: ${lowerFirst(channel)}`);
@@ -1064,7 +1068,7 @@ function fixHangingWords(node, seen = new Set()) {
   return node;
 }
 
-[tasks, tools, channels, gapOptions, watchOptions, taskAction, taskMetrics, taskScenarios,
+[tasks, tools, channels, watchOptions, taskAction, taskMetrics, taskScenarios,
  taskChannels, step3Consequence, step5Consequence, ui, final, anketa, system, pathMap]
   .forEach((part) => fixHangingWords(part));
 
@@ -1078,7 +1082,7 @@ export const content = {
   tasks, taskById,
   watchOptions, taskAction, taskMetrics, taskResultIds, metricDefaults,
   buildHypothesis, buildHypothesisParts, buildSummary, buildShareText, hypothesisText, watchWhat,
-  tools, toolById, taskTools, gapOptions,
+  tools, toolById, taskTools,
   pilotBudget, budgetNote, toolCost, budgetSpent, budgetLeft,
   taskScenarios, outcomeBand, effectiveBand, isOverbuilt, publicationFitOf, observedValue,
   precheckSet, idleToolCount,

@@ -186,7 +186,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
   min-height: 44px; display: inline-flex; align-items: center;
   color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer;
 }
-.hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
 .counter { color: var(--muted); font-size: 0.86rem; margin-bottom: 10px; }
 
 /* Выбор из вариантов */
@@ -377,7 +376,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .consequence { color: var(--muted); font-style: italic; min-height: 1.2em; margin: 10px 0 0; }
 .error { color: var(--danger); min-height: 1.2em; margin: 8px 0; }
 
-.gap-hint { color: var(--muted); font-size: 0.9rem; margin: 0 0 10px; }
 .muted { color: var(--muted); }
 
 /* Разбор набора до запуска теста (шаг 3): что можно убрать и чего не хватает.
@@ -526,7 +524,10 @@ button.restart { display: block; margin: 24px auto 0; }
 
 /* Шаг 2: строка сборки, раскрытия */
 .chain { font-size: .92rem; opacity: .85; margin: .4rem 0; }
-.more-tools, .gaps-wrap { margin-top: .5rem; }
+.more-tools { margin-top: .5rem; }
+/* Написанное в окне «чего не хватает» показываем под ссылкой, тем же спокойным
+   тоном, что и другие пояснения: это заметка для команды платформы, а не выбор. */
+.gaps-saved { color: var(--muted); font-size: 0.9rem; margin: 0 0 10px; }
 
 /* ─────────────────────────────────────────────────────────────
    Входная заставка-конвейер (intro.js). Палитра и шрифты — общие
@@ -725,4 +726,3 @@ button.restart { display: block; margin: 24px auto 0; }
 /* Финал: повтор входного вопроса — измеряет сдвиг у всех дошедших */
 .final-shift { margin: 18px 0 4px; padding-top: 14px; border-top: 1px solid var(--line); }
 .final-shift .choices { gap: 8px; }
-.shift-done { display: inline-block; margin-left: 4px; color: var(--muted); font-size: 0.88rem; }

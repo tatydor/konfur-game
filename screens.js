@@ -414,7 +414,7 @@ function step1(ctx) {
   return wrap;
 }
 
-// ── Шаг 2. Инструменты вокруг бюджета: выбрать до трёх ─────────
+// ── Шаг 2. Инструменты вокруг бюджета: выбрать в рамках сметы ──
 function step2(ctx) {
   const { content, state } = ctx;
   const t = content.ui.step2;
@@ -432,7 +432,8 @@ function step2(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ location: t.location, title: t.title, intro: t.intro }));
 
-  // Доработка: пилот уже тестировали, часть бюджета потрачена безвозвратно.
+  // Доработка: пилот уже тестировали, набор можно пересобрать в рамках той же
+  // сметы, потому что снятый инструмент возвращает свои баллы.
   if (state.refine) wrap.appendChild(el("div", { class: "refine-banner" }, t.refineBanner));
 
   // Бюджет пилота: строка «осталось», шкала потраченного и подпись. Оформлен как
@@ -505,16 +506,16 @@ function step2(ctx) {
     card.addEventListener("click", () => {
       const sel = state.tools.selected;
       const i = sel.indexOf(tool.id);
-      let action;
       if (i >= 0) {
-        sel.splice(i, 1); action = "removed";
+        sel.splice(i, 1);
         ctx.storage.track("tool_removed", { tool: tool.id, count: sel.length });
       } else if (!canAfford(tool.id)) {
-        msg.textContent = tpl(t.cantAffordTemplate, { n: content.toolCost(tool.id) - content.budgetLeft(state) });
-        ctx.storage.track("budget_exhausted", { tool: tool.id, set: [...sel] });
+        // Карточка дороже остатка уже выключена в refresh() и подписана строкой
+        // «не хватает N», поэтому сюда попасть нельзя. Оставляем тихую защиту на
+        // случай, если порядок сборки экрана когда-нибудь изменится.
         return;
       } else {
-        sel.push(tool.id); action = "added"; msg.textContent = "";
+        sel.push(tool.id); msg.textContent = "";
         ctx.storage.track("tool_selected", { tool: tool.id, count: sel.length });
       }
       card.classList.toggle("selected", sel.includes(tool.id));
@@ -560,25 +561,40 @@ function step2(ctx) {
     }
   }, t.hintButton);
 
-  // Нехватка — необязательная свёрнутая область, не в основном маршруте.
-  const gapsWrap = el("div", { class: "gaps-wrap", style: "display:none" });
-  const gapsRow = el("div", { class: "choices" });
-  for (const g of content.gapOptions) {
-    const chip = el("button", { class: "choice small" + (state.tools.gaps.includes(g.id) ? " selected" : "") }, g.label);
-    chip.addEventListener("click", () => {
-      const arr = state.tools.gaps;
-      const i = arr.indexOf(g.id);
-      if (i >= 0) { arr.splice(i, 1); chip.classList.remove("selected"); }
-      else { arr.push(g.id); chip.classList.add("selected"); ctx.storage.track("tool_gap_selected", { gap: g.id }); }
-      ctx.update();
-    });
-    gapsRow.appendChild(chip);
+  // Чего не хватило: ссылка открывает окно со свободным полем. Готовых вариантов
+  // здесь больше нет, потому что они перечисляли причины вокруг задачи и человек
+  // выбирал ближайший неподходящий пункт вместо того, чтобы назвать нужное.
+  // Ответ необязательный и лежит в стороне от основного маршрута шага.
+  const gapsSaved = el("p", { class: "gaps-saved" });
+  const gapsLink = el("button", { class: "linklike", type: "button", onclick: () => openGapsModal() });
+
+  function paintGaps() {
+    const text = (state.tools.gapsText || "").trim();
+    gapsSaved.textContent = text;
+    gapsSaved.style.display = text ? "" : "none";
+    gapsLink.textContent = text ? t.gapsLinkFilled : t.gapsLink;
   }
-  gapsWrap.appendChild(gapsRow);
-  const gapsToggle = el("button", {
-    class: "linklike",
-    onclick: () => { gapsWrap.style.display = gapsWrap.style.display === "" ? "none" : ""; }
-  }, t.gapsTitle);
+
+  function openGapsModal() {
+    openTextModal({
+      title: t.gapsModalTitle,
+      intro: t.gapsModalIntro,
+      value: state.tools.gapsText || "",
+      placeholder: t.gapsPlaceholder,
+      maxlength: 160,
+      counterTemplate: content.system.charsLeftTemplate,
+      cancelLabel: t.modalCancel,
+      saveLabel: t.modalSave,
+      returnFocusTo: gapsLink,
+      onSave: (text) => {
+        state.tools.gapsText = text;
+        ctx.update();
+        if (text) ctx.storage.track("tool_gap_written", { length: text.length });
+        paintGaps();
+      }
+    });
+  }
+  paintGaps();
 
   // Пустую цепочку дальше не пускаем — проверять нечего.
   foot.querySelector(".primary").addEventListener("click", (e) => {
@@ -587,7 +603,7 @@ function step2(ctx) {
 
   wrap.append(list, moreWrap, moreToggle);
   if (hintBtn) wrap.append(el("div", { class: "tool-actions" }, hintBtn), hintNote);
-  wrap.append(chain, msg, gapsToggle, gapsWrap, foot);
+  wrap.append(chain, msg, gapsLink, gapsSaved, foot);
   refresh();
   return wrap;
 }
@@ -656,7 +672,9 @@ function step3(ctx) {
 
   // Готовый кейс: результат зависит от цепочки. Строим вклад каждого инструмента,
   // называем непокрытые ключевые способности, показываем итог по бэнду.
-  function showResult() {
+  // fresh — экран собирается после свежего прогона. Возврат с шага 4 показывает
+  // тот же результат заново, и событие о прогоне при этом повторять незачем.
+  function showResult(fresh) {
     const active = state.tools.selected;
     const sc = content.taskScenarios[state.task];
     const band = content.outcomeBand(state.task, active);
@@ -698,7 +716,7 @@ function step3(ctx) {
       })));
     }
 
-    ctx.storage.track("pilot_test_result", { band, set: [...active] });
+    if (fresh) ctx.storage.track("pilot_test_result", { band, set: [...active] });
 
     // Доработка доступна один раз (testCount < 2). Когда она потрачена, выбирать
     // не из чего, поэтому результат принимаем сами: нажатие ничего не решало бы.
@@ -719,7 +737,7 @@ function step3(ctx) {
         // цепочку игрок запускает заново и видит новый результат отдельно.
         state.refine = true; state.step3Choice = null; ctx.update();
         ctx.storage.track("pilot_refine_selected", { band });
-        ctx.back();   // возврат к инструментам, бюджет уже потрачен
+        ctx.back();   // возврат к инструментам: смета та же, снятое возвращает баллы
         return;
       }
       state.step3Choice = "enough"; state.refine = false; ctx.update();
@@ -732,20 +750,34 @@ function step3(ctx) {
   }
 
   // Анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
+  // Пока прогон идёт, кнопка выключена и повторные нажатия ничего не запускают:
+  // раньше три быстрых нажатия подряд забирали обе попытки сразу, поэтому выбор
+  // «принять или доработать» не появлялся и игра принимала результат сама.
+  // Попытка засчитывается в конце прогона: если игрок ушёл назад посреди
+  // анимации, результата он не увидел, и тратить на это доработку не за что.
+  let testRunning = false;
   function runBuild() {
+    if (testRunning) return;
+    testRunning = true;
+    footBtn.disabled = true;
     ctx.storage.track("pilot_test_started", { set: [...state.tools.selected], testNo: state.testCount + 1 });
-    state.tools.testedSet = [...state.tools.selected];
-    state.testCount = Math.min(state.testCount + 1, 2);
-    ctx.update();
     const nodes = [...chainRow.querySelectorAll(".chain-node")];
     const reduce = typeof window !== "undefined" && window.matchMedia
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const done = () => (freeform ? showCustomResult() : showResult());
+    const done = () => {
+      testRunning = false;
+      if (!chainRow.isConnected) return;   // экран сменился, дописывать нечего
+      state.tools.testedSet = [...state.tools.selected];
+      state.testCount = Math.min(state.testCount + 1, 2);
+      ctx.update();
+      freeform ? showCustomResult() : showResult(true);
+    };
     if (reduce) { nodes.forEach((n) => n.classList.add("lit")); done(); return; }
     stage.innerHTML = "";
     stage.appendChild(el("div", { class: "building" }, el("span", {}, t.buildingText)));
     let i = 0;
     const lit = () => {
+      if (!chainRow.isConnected) { testRunning = false; return; }   // ушли со шага
       if (i < nodes.length) { nodes[i].classList.add("lit"); i += 1; setTimeout(lit, 340); }
       else setTimeout(done, 300);
     };
@@ -892,8 +924,11 @@ function step4(ctx) {
   function select(id) {
     state.publishChannel = id;
     ctx.update();
-    ctx.storage.track("channel_selected", { channel: id, wasRecommended: tc.reco.includes(id) });
-    ctx.storage.track("publication_selected", { channel: id, fit: content.publicationFitOf(state.task, id) });
+    ctx.storage.track("channel_selected", {
+      channel: id,
+      wasRecommended: tc.reco.includes(id),
+      fit: content.publicationFitOf(state.task, id)
+    });
     showRequirements(id);
     renderList();
   }
@@ -988,7 +1023,6 @@ function step5Numeric(ctx, wrap, taskLabel) {
       consequence.textContent = step5Text(id);
       foot.querySelector(".primary").disabled = false;
       ctx.storage.track("monitor_decision", { decision: id });
-      ctx.storage.track("observation_decision", { decision: id });
     }
   );
 
@@ -1189,15 +1223,20 @@ function final(ctx) {
     overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
     document.addEventListener("keydown", onKey);
 
+    // Ни почта, ни текст задачи не попадают в сохранённое состояние: игра живёт на
+    // общем планшете, поэтому личное держим только в полях открытого окна и
+    // отдаём сразу в форму.
     const contactInput = el("input", { class: "text-field", type: "text", placeholder: f.contactPlaceholder, "aria-label": f.contactPlaceholder });
-    contactInput.value = state.contact || "";
     const nodes = [el("h2", { class: "modal-title" }, f.contactCta), el("p", { class: "modal-intro" }, f.contactExplain), contactInput];
 
     // Короткое поле задачи — только если её не вводили раньше (не «своя задача»).
+    // Свою задачу берём из состояния, вписанную здесь — из самого поля: раньше её
+    // клали в state.ownTaskText, а в форму отправляли только для «своей задачи»,
+    // поэтому текст оставался в браузере и до команды не доходил.
+    let ownTaskValue = state.task === "own" ? state.ownTaskText.trim() : "";
     if (state.task !== "own") {
       const taskInput = el("input", { class: "text-field", type: "text", placeholder: f.contactTaskPlaceholder, "aria-label": f.contactTaskPlaceholder });
-      taskInput.value = state.ownTaskText || "";
-      taskInput.addEventListener("input", () => { state.ownTaskText = taskInput.value; ctx.update(); });
+      taskInput.addEventListener("input", () => { ownTaskValue = taskInput.value.trim(); });
       nodes.push(taskInput);
     }
 
@@ -1215,8 +1254,7 @@ function final(ctx) {
       if (!val) { setMsg(f.contactNeedField, "error"); contactInput.focus(); return; }
       if (!validFormat(val)) { setMsg(f.contactBadFormat, "error"); contactInput.focus(); return; }
       sending = true; sendBtn.disabled = true; setMsg(f.contactSending, "");
-      state.contact = val; ctx.update();
-      ctx.storage.saveContact(val, { ownTask: state.task === "own" ? state.ownTaskText.trim() : "" })
+      ctx.storage.saveContact(val, { ownTask: ownTaskValue })
         .then(() => {
           state.contactSent = true; ctx.update();
           setMsg(f.contactOk, "ok"); sendBtn.textContent = f.contactSent;   // остаётся disabled — без дублей
@@ -1244,8 +1282,9 @@ function final(ctx) {
 
   // ── Повтор входного вопроса: измеряет сдвиг в понимании у всех дошедших, а не
   // только у заполнивших анкету. Одна строка, два ответа, своя строка в форме.
+  // Отдельной благодарности после ответа нет: выбранная кнопка остаётся нажатой,
+  // обе становятся неактивными, и этого достаточно, чтобы понять, что ответ принят.
   const shiftRow = el("div", { class: "choices toggle" });
-  const shiftDone = el("span", { class: "shift-done", role: "status", "aria-live": "polite" });
   [["yes", f.awarenessYes], ["no", f.awarenessNo]].forEach(([id, label]) => {
     const btn = el("button", {
       class: "choice toggle" + (state.awarenessAfter === id ? " selected" : ""),
@@ -1269,18 +1308,16 @@ function final(ctx) {
         b.setAttribute("aria-pressed", b === btn ? "true" : "false");
         b.disabled = true;
       });
-      shiftDone.textContent = f.awarenessThanks;
     });
     shiftRow.appendChild(btn);
   });
   if (state.shiftSent) {
     shiftRow.querySelectorAll(".choice").forEach((b) => { b.disabled = true; });
-    shiftDone.textContent = f.awarenessThanks;
   }
   // Блок собран теми же классами, что и вопрос на входном экране: подпись сверху
   // и пара кнопок-карточек, чтобы повтор вопроса читался как тот же самый.
   wrap.appendChild(el("div", { class: "final-shift" },
-    fieldset(f.awarenessRepeat, shiftRow, "section-label"), shiftDone));
+    fieldset(f.awarenessRepeat, shiftRow, "section-label")));
 
   // ── Переход в анкету: вторичное текстовое действие, не primary и без «Назад».
   // Финал остаётся терминальным состоянием игры, поэтому nav() тут не используем.
@@ -1307,45 +1344,50 @@ function anketa(ctx) {
   const wrap = el("div");
   wrap.appendChild(header({ title: a.title, intro: a.intro }));
 
-  // Вопрос «чего не хватило» предзаполняем тем, что отмечено на шаге 2.
-  const gapLabels = state.tools.gaps
-    .map((id) => content.gapOptions.find((g) => g.id === id)?.label)
-    .filter(Boolean).join(", ");
+  // Вопрос «чего не хватило» предзаполняем тем, что человек написал на шаге 2.
+  const gapsText = (state.tools.gapsText || "").trim();
 
   const inputs = [];
   a.questions.forEach((q) => {
     const input = el("input", { class: "text-field", type: "text" });
-    if (q.prefill === "gaps" && gapLabels) input.value = gapLabels;
+    if (q.prefill === "gaps" && gapsText) input.value = gapsText;
     inputs.push(input);
     wrap.appendChild(fieldset(q.text, input));
   });
 
   const done = el("div", { class: "thanks", style: "display:none", role: "status", "aria-live": "polite" }, a.thanks);
   const restart = el("button", { class: "ghost restart", style: "display:none", onclick: () => ctx.restart() }, content.final.restart);
-  let submitted = false;
   const submitBtn = el("button", {
     class: "primary",
     onclick: () => {
-      if (submitted) return;               // повторное нажатие не создаёт дубликаты
-      submitted = true; submitBtn.disabled = true;
+      if (state.surveySent) return;        // повторная отправка не создаёт дубликаты
+      state.surveySent = true; ctx.update();
+      submitBtn.disabled = true;
       const answers = inputs.map((inp) => inp.value.trim());
-      // В локальную аналитику — только признаки заполнения, без сырого текста.
+      // В отладочное событие — только признаки заполнения, без текста ответов.
       const fields = answers.map((a) => a.length > 0);
       ctx.storage.track("survey_submitted", { fields, filled: fields.filter(Boolean).length });
       // В форму — только ответы анкеты (kind=survey). Сводка прохождения уже ушла
       // при показе финала, эта строка связывается с ней по sessionId.
-      // Первый вопрос предзаполнен выбором с шага 2, поэтому помечаем, тронул ли
+      // Первый вопрос предзаполнен текстом с шага 2, поэтому помечаем, тронул ли
       // игрок это поле: нетронутое предзаполнение — не его ответ.
       ctx.storage.sendRow("survey", {
         decision: state.finalVariant || state.step5Choice || "",
         answer1: answers[0], answer2: answers[1],
-        gaps: state.tools.gaps.join(", "),
-        payload: JSON.stringify({ answer1Prefilled: Boolean(gapLabels) && answers[0] === gapLabels })
+        gaps: gapsText,
+        payload: JSON.stringify({ answer1Prefilled: Boolean(gapsText) && answers[0] === gapsText })
       });
       done.style.display = "";
       restart.style.display = "";
     }
   }, a.button);
+  // Вернулись в анкету после отправки: показываем ту же благодарность и кнопку
+  // перезапуска, отправить второй раз нельзя.
+  if (state.surveySent) {
+    submitBtn.disabled = true;
+    done.style.display = "";
+    restart.style.display = "";
+  }
   const foot = el("footer", { class: "nav" },
     el("button", { class: "ghost", onclick: () => ctx.back() }, "← Назад"),
     submitBtn
