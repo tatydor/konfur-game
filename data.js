@@ -281,7 +281,9 @@ export function buildHypothesis(taskId, resultId, goalId, sampleSize, ownTaskTex
 // бюджета пилота (pilotBudget). Значения — из ТЗ «инструменты как механика».
 export const tools = [
   { id: "llm",      name: "LLM",                  explain: "Большие языковые модели: пишут, переписывают, отвечают, разбирают текст.", cost: 25,        role: "разберёт и сформулирует текст" },
-  { id: "agents",   name: "Агентские фреймворки", explain: "Автономные системы с памятью, состоянием и своими инструментами.",       cost: 30, role: "выполнит шаги сам" },
+  // chainName — короткое имя для плашки цепочки на шаге 3: полное в неё не влезает
+  // и ломает ряд лишней строкой. Везде остальное название остаётся полным.
+  { id: "agents",   name: "Агентские фреймворки", chainName: "Агенты", explain: "Автономные системы с памятью, состоянием и своими инструментами.", cost: 30, role: "выполнит шаги сам" },
   { id: "rag",      name: "RAG",                  explain: "Ответы по твоим базам и документам, со ссылкой на источник.",             cost: 25,        role: "найдёт ответ в твоей базе" },
   { id: "ocr",      name: "OCR",                  explain: "Распознавание текста на сканах и фотографиях.",                          cost: 15,        role: "распознает текст на сканах" },
   { id: "ner",      name: "NER",                  explain: "Находит в тексте сущности: суммы, даты, названия, реквизиты.",           cost: 15,        role: "выделит нужные поля" },
@@ -822,7 +824,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.18";
+export const GAME_VERSION = "0.9.19";
 
 export function createInitialState() {
   const now = Date.now();

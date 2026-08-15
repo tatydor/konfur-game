@@ -613,7 +613,8 @@ function step3(ctx) {
       // до запуска (разбор набора) и после него (роль инструментов).
       // Стрелка лежит в одной ячейке со своей плашкой, поэтому при переносе
       // цепочки на вторую строку она уезжает вместе с ней, а не висит хвостом.
-      const node = el("div", { class: "chain-node" }, el("span", { class: "chain-name" }, tl.name));
+      const node = el("div", { class: "chain-node" },
+        el("span", { class: "chain-name" }, tl.chainName || tl.name));
       chainRow.appendChild(i
         ? el("div", { class: "chain-cell" }, el("span", { class: "chain-arrow" }, "→"), node)
         : el("div", { class: "chain-cell" }, node));
