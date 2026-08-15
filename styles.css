@@ -222,6 +222,10 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   color: var(--muted); padding: 11px 26px;
 }
+/* Переключатель с текущим значением второй строкой (показатели шага 1). */
+.choice-lines { display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.2; }
+.choice-note { font-family: var(--font-text); font-weight: 400; font-size: 0.7rem; color: var(--muted); }
+.choice.toggle.with-note { padding: 9px 10px; min-width: 0; }
 .choice.toggle:hover { border-color: var(--accent); color: var(--text); }
 .choice.toggle.selected {
   background: var(--surface); border-color: var(--accent); color: var(--accent);

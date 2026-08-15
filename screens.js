@@ -135,7 +135,7 @@ function choiceRow(options, selected, onPick, extraClass = "") {
   for (const opt of options) {
     const btn = el("button", {
       type: "button",
-      class: "choice " + extraClass + (selected === opt.id ? " selected" : ""),
+      class: "choice " + extraClass + (opt.note ? " with-note" : "") + (selected === opt.id ? " selected" : ""),
       "aria-pressed": selected === opt.id ? "true" : "false",
       onclick: () => {
         [...row.children].forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
@@ -143,7 +143,11 @@ function choiceRow(options, selected, onPick, extraClass = "") {
         btn.setAttribute("aria-pressed", "true");
         onPick(opt.id);
       }
-    }, opt.label);
+    }, opt.note
+      ? el("span", { class: "choice-lines" },
+          el("span", { class: "choice-label" }, opt.label),
+          el("span", { class: "choice-note" }, opt.note))
+      : opt.label);
     row.appendChild(btn);
   }
   return row;
@@ -339,7 +343,9 @@ function step1(ctx) {
     // Результат: кнопки в порядке ключей taskMetrics. Смена сбрасывает цель на первую.
     const resultIds = content.taskResultIds(state.task);
     numericHost.appendChild(fieldset(t.resultLegend,
-      choiceRow(resultIds.map((id) => ({ id, label: tm[id].label })), h.resultChoice, (id) => {
+      // Подпись называет показатель одним словом, вторая строка даёт текущее
+      // значение: без неё «Время» и «Срок» на кнопках не различить до выбора.
+      choiceRow(resultIds.map((id) => ({ id, label: tm[id].label, note: tm[id].chip })), h.resultChoice, (id) => {
         h.resultChoice = id;
         h.goalChoice = tm[id].goals[0].id;
         ctx.update(); maybeTrackBuilt(); paintNumeric("goal");

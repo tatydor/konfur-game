@@ -134,7 +134,7 @@ export const taskAction = {
 export const taskMetrics = {
   documents: {
     time: {
-      label: "Сократим время", now: "9 минут на документ", nowShort: "9 мин",
+      label: "Время", chip: "9 мин", now: "9 минут на документ", nowShort: "9 мин",
       phrase: "сократим обработку документа с 9 до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "5 минут", targetShort: "5 мин", actual: "6 мин" },
@@ -142,7 +142,7 @@ export const taskMetrics = {
       ]
     },
     errors: {
-      label: "Снизим ошибки", now: "18% документов с ошибкой", nowShort: "18%",
+      label: "Ошибки", chip: "18% ошибок", now: "18% документов с ошибкой", nowShort: "18%",
       phrase: "снизим долю ошибок с 18% до {target}",
       goals: [
         { id: "x2", label: "Вдвое меньше", target: "9%", targetShort: "9%", actual: "11%" },
@@ -150,7 +150,7 @@ export const taskMetrics = {
       ]
     },
     more: {
-      label: "Успеем больше", now: "60 документов в день", nowShort: "60",
+      label: "Объём", chip: "60 в день", now: "60 документов в день", nowShort: "60",
       phrase: "поднимем выработку с 60 до {target} в день",
       goals: [
         { id: "x2", label: "Вдвое больше", target: "120 документов", targetShort: "120", actual: "95" },
@@ -161,7 +161,7 @@ export const taskMetrics = {
   },
   requests: {
     more: {
-      label: "Успеем больше", now: "200 обращений в день", nowShort: "200",
+      label: "Объём", chip: "200 в день", now: "200 обращений в день", nowShort: "200",
       phrase: "поднимем разбор с 200 до {target} в день",
       goals: [
         { id: "x2", label: "Вдвое больше", target: "400 обращений", targetShort: "400", actual: "320" },
@@ -169,7 +169,7 @@ export const taskMetrics = {
       ]
     },
     time: {
-      label: "Сократим время", now: "6 минут на обращение", nowShort: "6 мин",
+      label: "Время", chip: "6 мин", now: "6 минут на обращение", nowShort: "6 мин",
       phrase: "сократим разбор обращения с 6 до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "3 минуты", targetShort: "3 мин", actual: "4 мин" },
@@ -177,7 +177,7 @@ export const taskMetrics = {
       ]
     },
     faster: {
-      label: "Ответим быстрее", now: "ответ за 4 часа", nowShort: "4 ч",
+      label: "Срок", chip: "за 4 часа", now: "ответ за 4 часа", nowShort: "4 ч",
       phrase: "ускорим ответ с 4 часов до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "2 часа", targetShort: "2 ч", actual: "3 ч" },
@@ -188,7 +188,7 @@ export const taskMetrics = {
   },
   news: {
     time: {
-      label: "Сократим время", now: "3 часа в неделю на чтение", nowShort: "3 ч",
+      label: "Время", chip: "3 ч в неделю", now: "3 часа в неделю на чтение", nowShort: "3 ч",
       phrase: "сократим чтение с 3 часов в неделю до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "1,5 часа", targetShort: "1,5 ч", actual: "2 ч" },
@@ -196,7 +196,7 @@ export const taskMetrics = {
       ]
     },
     more: {
-      label: "Успеем больше", now: "30 источников", nowShort: "30",
+      label: "Охват", chip: "30 источников", now: "30 источников", nowShort: "30",
       phrase: "расширим охват с 30 до {target}",
       goals: [
         { id: "x2", label: "Вдвое больше", target: "60 источников", targetShort: "60", actual: "48" },
@@ -204,7 +204,7 @@ export const taskMetrics = {
       ]
     },
     faster: {
-      label: "Узнаем раньше", now: "узнаём об изменении за 5 дней", nowShort: "5 дней",
+      label: "Свежесть", chip: "за 5 дней", now: "узнаём об изменении за 5 дней", nowShort: "5 дней",
       phrase: "сократим задержку с 5 дней до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "2 дня", targetShort: "2 дня", actual: "3 дня" },
@@ -215,7 +215,7 @@ export const taskMetrics = {
   },
   contract: {
     errors: {
-      label: "Снизим ошибки", now: "12% расхождений пропускаем", nowShort: "12%",
+      label: "Пропуски", chip: "12% пропусков", now: "12% расхождений пропускаем", nowShort: "12%",
       phrase: "снизим пропуски с 12% до {target}",
       goals: [
         { id: "x2", label: "Вдвое меньше", target: "6%", targetShort: "6%", actual: "8%" },
@@ -223,7 +223,7 @@ export const taskMetrics = {
       ]
     },
     time: {
-      label: "Сократим время", now: "40 минут на договор", nowShort: "40 мин",
+      label: "Время", chip: "40 мин", now: "40 минут на договор", nowShort: "40 мин",
       phrase: "сократим сверку договора с 40 до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "20 минут", targetShort: "20 мин", actual: "26 мин" },
@@ -231,7 +231,7 @@ export const taskMetrics = {
       ]
     },
     faster: {
-      label: "Проверим быстрее", now: "проверка за 2 дня", nowShort: "2 дня",
+      label: "Срок", chip: "за 2 дня", now: "проверка за 2 дня", nowShort: "2 дня",
       phrase: "ускорим проверку с 2 дней до {target}",
       goals: [
         { id: "x2", label: "Вдвое быстрее", target: "1 день", targetShort: "1 день", actual: "1,5 дня" },
@@ -822,7 +822,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.14";
+export const GAME_VERSION = "0.9.16";
 
 export function createInitialState() {
   const now = Date.now();
