@@ -623,9 +623,17 @@ function step3(ctx) {
 
   const stage = el("div", { class: "stage" });
   const consequence = el("p", { class: "consequence", "aria-live": "polite" });
-  const foot = nav(ctx, { nextLabel: t.button, disabled: !freeform && state.step3Choice !== "enough" });
-  // До запуска теста идти дальше не с чем, поэтому переход к шагу 4 не показываем.
-  foot.hidden = true;
+  // Главное действие шага живёт внизу, как на остальных шагах: до теста это
+  // «Запустить тест», после — переход к шагу 4. Кнопка одна, меняются подпись
+  // и действие, поэтому обработчик зовёт текущее через footAction.
+  let footAction = () => ctx.next();
+  const foot = nav(ctx, { nextLabel: t.buildButton, onNext: () => footAction() });
+  const footBtn = foot.querySelector(".primary");
+  function setFoot(label, action, disabled) {
+    footBtn.textContent = label;
+    footBtn.disabled = !!disabled;
+    footAction = action;
+  }
 
   const consequenceFor = (id) => task.check?.[id]?.consequence || content.step3Consequence[id];
 
@@ -637,8 +645,7 @@ function step3(ctx) {
       el("div", { class: "legend" }, t.resultLabel),
       el("div", { class: "callout" }, t.customResult)
     ));
-    foot.hidden = false;
-    foot.querySelector(".primary").disabled = false;
+    setFoot(t.button, () => ctx.next(), false);
   }
 
   // Готовый кейс: результат зависит от цепочки. Строим вклад каждого инструмента,
@@ -650,7 +657,7 @@ function step3(ctx) {
     const out = sc.outcomes[band];
 
     stage.innerHTML = "";
-    foot.hidden = false;
+    setFoot(t.button, () => ctx.next(), state.step3Choice !== "enough");
     stage.appendChild(el("div", { class: "field" },
       el("div", { class: "legend" }, t.resultLabel),
       el("div", { class: "callout" }, out.testResult)
@@ -688,7 +695,7 @@ function step3(ctx) {
       }
       state.step3Choice = "enough"; state.refine = false; ctx.update();
       consequence.textContent = consequenceFor(state.testCount >= 2 ? "refine" : "enough");
-      foot.querySelector(".primary").disabled = false;
+      footBtn.disabled = false;
       ctx.storage.track("test_decision", { decision: "enough" });
     });
     stage.appendChild(fieldset(t.question, choice));
@@ -721,12 +728,11 @@ function step3(ctx) {
   function showPrecheck() {
     stage.innerHTML = "";
     const pre = freeform ? null : content.precheckSet(state.task, state.tools.selected);
-    const runBtn = () => el("button", { class: "primary build", onclick: runBuild }, t.buildButton);
+    setFoot(t.buildButton, runBuild, false);
 
     if (!pre || (!pre.extra.length && !pre.missing.length)) {
       // Своей задаче игра не выносит оценку: нужной архитектуры она не знает.
       if (freeform) stage.appendChild(el("p", { class: "precheck-note" }, t.precheckCustomNote));
-      stage.appendChild(runBtn());
       return;
     }
 
@@ -778,16 +784,15 @@ function step3(ctx) {
         ctx.back();
       }
     }, t.precheckChangeButton));
-    actions.appendChild(el("button", {
-      class: "primary wide",
-      onclick: () => {
-        ctx.storage.track("precheck_decision", {
-          decision: "run_as_is", extra: pre.extra.length, missing: pre.missing.length
-        });
-        runBuild();
-      }
-    }, t.precheckRunButton));
     stage.appendChild(actions);
+    // Запуск как есть — то же главное действие шага, поэтому оно внизу вместе с
+    // остальными; в теле остаются только развилки «добрать» и «сменить набор».
+    setFoot(t.precheckRunButton, () => {
+      ctx.storage.track("precheck_decision", {
+        decision: "run_as_is", extra: pre.extra.length, missing: pre.missing.length
+      });
+      runBuild();
+    }, false);
   }
 
   renderChain();
