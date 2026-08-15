@@ -638,7 +638,7 @@ export const ui = {
     button: "Проверить решение →"
   },
   step3: {
-    location: "Dify или твой код",
+    location: "песочница пилота",
     title: "Проверь решение",
     intro: "Запусти собранную цепочку на реальном примере и посмотри, как она работает",
     buildButton: "Запустить тест",
@@ -671,7 +671,7 @@ export const ui = {
     behindLabel: "Основа",
     otherLabel: "Способ запуска",
     requirementsLabel: "Что понадобится",
-    earlyAttempt: "Реши, как решение дойдёт до людей. Без этого пилот остаётся у тебя в тестовом окне.",
+    earlyAttempt: "Реши, как решение дойдёт до людей. Без этого пилот остаётся в песочнице.",
     button: "Запустить пилот →"
   },
   step5: {
@@ -825,7 +825,7 @@ export const system = {
 export const SCHEMA_VERSION = 4;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.24";
+export const GAME_VERSION = "0.9.25";
 
 export function createInitialState() {
   const now = Date.now();
