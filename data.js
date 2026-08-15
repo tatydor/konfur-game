@@ -362,7 +362,7 @@ export const taskScenarios = {
       llm:  { relevance: "useful",     contribution: "привёл разнородные подписи полей к единому виду." },
       mcp:  { relevance: "useful",     contribution: "положил извлечённые поля прямо в учётную систему." },
       rag:  { relevance: "context",    contribution: "подсказал заполнение поля по справочнику." },
-      agents: { relevance: "context",  contribution: "тут избыточен: процесс уже собран в Dify." },
+      agents: { relevance: "irrelevant", note: "этой задаче не нужен: шаги известны заранее." },
       asr_tts:  { relevance: "irrelevant", note: "не нужны: в документах нет речи." },
       cargo:    { relevance: "irrelevant", note: "собирает новости, а не разбирает документы." },
       imagegen: { relevance: "irrelevant", note: "в разборе документов не участвует." }
@@ -386,7 +386,7 @@ export const taskScenarios = {
       mcp:  { relevance: "core",    contribution: "забрал обращения из рабочей системы и вернул ответы." },
       ner:  { relevance: "useful",  contribution: "выделил в письмах номера договоров и суммы." },
       rag:  { relevance: "useful",  contribution: "подсказал связанные инструкции по вопросу." },
-      agents: { relevance: "context", contribution: "избыточен: сценарий уже собран в Dify." },
+      agents: { relevance: "irrelevant", note: "этой задаче не нужен: сценарий разбора известен заранее." },
       ocr:      { relevance: "irrelevant", note: "не повлиял: обращения приходят текстом." },
       asr_tts:  { relevance: "irrelevant", note: "не нужны: заявки текстовые." },
       cargo:    { relevance: "irrelevant", note: "собирает новости, а не разбирает заявки." },
@@ -412,7 +412,7 @@ export const taskScenarios = {
       ner:   { relevance: "useful", contribution: "выделил в новостях компании и даты." },
       rag:   { relevance: "useful", contribution: "связал новость с внутренними документами." },
       asr_tts: { relevance: "context", contribution: "пригодился бы, будь среди источников подкасты и видео." },
-      agents:  { relevance: "context", contribution: "для регулярной подборки избыточен." },
+      agents:  { relevance: "irrelevant", note: "для регулярной подборки избыточен." },
       ocr:      { relevance: "irrelevant", note: "не повлиял: материалы приходят текстом." },
       imagegen: { relevance: "irrelevant", note: "в сборе новостей не участвует." }
     },
@@ -435,7 +435,7 @@ export const taskScenarios = {
       dify: { relevance: "useful",  contribution: "собрал сверку в повторяемый процесс." },
       mcp:  { relevance: "useful",  contribution: "подтянул типовые формы из хранилища." },
       ocr:    { relevance: "context", contribution: "понадобился бы, приди договор сканом." },
-      agents: { relevance: "context", contribution: "для сверки избыточен." },
+      agents: { relevance: "irrelevant", note: "для сверки избыточен." },
       asr_tts:  { relevance: "irrelevant", note: "не нужны: договор текстовый." },
       cargo:    { relevance: "irrelevant", note: "собирает новости, а не сверяет договоры." },
       imagegen: { relevance: "irrelevant", note: "в сверке договоров не участвует." }
@@ -649,6 +649,9 @@ export const ui = {
     buildingText: "Прогоняем на реальном случае",
     resultLabel: "Результат теста",
     contributionsLabel: "Роль инструментов",
+    // Строка про запас: формулировка не согласуется с названием инструмента,
+    // потому что среди них есть и множественное число («Агентские фреймворки»).
+    idleSummary: "Пилот собран с запасом: {tools}. На результат это не повлияло, а бюджета ушло на {n} баллов больше.",
     customResult: "Цепочка собрана. Следующий шаг — проверить её на реальных случаях из твоей задачи и сравнить результат с гипотезой.",
     question: "Что делать с результатом?",
     enoughLabel: "Принять",
@@ -827,7 +830,7 @@ export const system = {
 export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.30";
+export const GAME_VERSION = "0.9.31";
 
 export function createInitialState() {
   const now = Date.now();

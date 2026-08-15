@@ -295,6 +295,8 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .stage { margin: 6px 0; }
 .building { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 14px 0; }
 
+.idle-note { color: var(--muted); font-size: 0.9rem; margin: 10px 0 0; }
+
 /* Шаг 3: сцена вокруг цепочки. Линии в макете шире колонки и уходят за края,
    поэтому рисункам даём отрицательные поля на величину отступа страницы. */
 .test-scene { position: relative; margin: 10px 0 0; }

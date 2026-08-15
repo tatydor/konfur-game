@@ -688,6 +688,16 @@ function step3(ctx) {
     stage.appendChild(el("div", { class: "field" },
       el("div", { class: "legend" }, t.contributionsLabel), contrib));
 
+    // Итог про избыточность: до финала игрок иначе не свяжет лишние инструменты
+    // с потраченным бюджетом, а на финале это уже поздний сюрприз.
+    const idle = active.filter((id) => sc.toolEffects[id]?.relevance === "irrelevant");
+    if (idle.length) {
+      const idleCost = idle.reduce((sum, id) => sum + content.toolCost(id), 0);
+      stage.appendChild(el("p", { class: "idle-note" }, tpl(t.idleSummary, {
+        tools: idle.map((id) => content.toolById[id].name).join(", "), n: idleCost
+      })));
+    }
+
     ctx.storage.track("pilot_test_result", { band, set: [...active] });
 
     // Доработка доступна один раз (testCount < 2). Когда она потрачена, выбирать
