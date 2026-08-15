@@ -305,13 +305,10 @@ export const tools = [
 export const pilotBudget = 100;
 export const budgetNote = "условная сложность пилота, не стоимость сервисов";
 export const toolCost = (id) => toolById[id]?.cost || 0;
-// Сколько уже потрачено: купленные на первом тесте инструменты (sunk) плюс
-// добавленные сверх них в активной цепочке. Купленное не возвращается.
+// Сколько потрачено: считаем по текущей цепочке. Снятый инструмент возвращает
+// свои баллы, иначе доработка наказывала бы игрока за исправление ошибки.
 export function budgetSpent(state) {
-  const sunk = state.tools.purchased || [];
-  const active = state.tools.selected || [];
-  const extra = active.filter((id) => !sunk.includes(id));
-  return [...sunk, ...extra].reduce((s, id) => s + toolCost(id), 0);
+  return (state.tools.selected || []).reduce((s, id) => s + toolCost(id), 0);
 }
 export const budgetLeft = (state) => pilotBudget - budgetSpent(state);
 
@@ -639,7 +636,7 @@ export const ui = {
     collapseToolsLabel: "Свернуть инструменты",
     emptyChainError: "Собери хотя бы один инструмент, иначе проверять нечего.",
     gapsTitle: "Не нашёлся нужный инструмент? Отметь, чего не хватает",
-    refineBanner: "Доработка пилота. Поменяй цепочку в рамках остатка бюджета: потраченное не вернётся, уже купленное включается бесплатно.",
+    refineBanner: "Доработка пилота. Поменяй цепочку в рамках бюджета: снятый инструмент возвращает свои баллы.",
     refineButton: "Проверить снова →",
     button: "Проверить решение →"
   },
@@ -798,7 +795,9 @@ export const final = {
   awarenessYes: "Да",
   awarenessNo: "Нет",
   awarenessThanks: "Спасибо",
-  toAnketa: "Ответить на два вопроса →"
+  toAnketa: "Ответить на два вопроса →",
+  restart: "Начать сначала",
+  restartConfirm: "Точно начать сначала? Код подарка пропадёт"
 };
 
 // Экран 7: анкета. Вопрос о контакте убран (он один на финале), осталось два
@@ -828,10 +827,10 @@ export const system = {
 //    отдельно не хранится, а выводится из признака edited и finalText.
 // ─────────────────────────────────────────────────────────────
 // Версия структуры состояния. При несовпадении старое сохранение не восстанавливаем.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 // Версия игры — уходит в каждое событие аналитики.
-export const GAME_VERSION = "0.9.28";
+export const GAME_VERSION = "0.9.29";
 
 export function createInitialState() {
   const now = Date.now();
@@ -854,7 +853,7 @@ export function createInitialState() {
     tools: {
       selected: [],      // активная цепочка (activeToolIds) — id из tools
       gaps: [],          // id из gapOptions
-      purchased: []      // купленные к первому тесту (sunk-бюджет), не возвращаются
+      testedSet: []      // набор, на котором прошёл последний тест
     },
     testCount: 0,        // сколько раз запускали проверку: 0 | 1 | 2 (макс одна доработка)
     refine: false,       // идёт доработка после первого теста (возврат к инструментам)
@@ -880,7 +879,7 @@ export function createInitialState() {
 // чтобы новая ветка не наследовала гипотезу, инструменты и решения старой.
 export function resetDependentOnTask(state) {
   state.hypothesis = { finalText: "", freeform: false, customText: "", resultChoice: null, goalChoice: null, sampleSize: null };
-  state.tools = { selected: [], gaps: [], purchased: [] };
+  state.tools = { selected: [], gaps: [], testedSet: [] };
   state.testCount = 0;
   state.refine = false;
   state.step3Choice = null;
@@ -1010,6 +1009,40 @@ export function buildShareText(state) {
   lines.push("", final.shareNextStep.replace("{duty}", final.dutyNick), final.shareToolsLine);
   return lines.join("\n");
 }
+
+// ─────────────────────────────────────────────────────────────
+// Типографика: короткие предлоги и союзы не должны висеть в конце строки.
+// Проходим по всему копирайту один раз при загрузке и приклеиваем их к
+// следующему слову неразрывным пробелом. Так правило соблюдается само,
+// без ручных вставок в каждую строку.
+// ─────────────────────────────────────────────────────────────
+const SHORT_WORDS = new Set(["а","и","но","да","или","же","ли","бы","не","ни","в","во","до","за","из",
+  "к","ко","на","над","о","об","от","по","под","при","про","с","со","у","для","без","что","как","чем","то"]);
+
+// Идём по словам, а не регулярным выражением с границами: так цепочка «и на» тоже
+// склеивается целиком, а переводы строк в копируемом плане остаются переводами.
+function unhang(str) {
+  const parts = str.split(/(\s+)/);
+  for (let i = 0; i + 2 < parts.length; i += 2) {
+    const word = parts[i].replace(/^[(«"„—–-]+/, "").toLowerCase();
+    if (parts[i + 1] === " " && SHORT_WORDS.has(word)) parts[i + 1] = "\u00A0";
+  }
+  return parts.join("");
+}
+
+function fixHangingWords(node, seen = new Set()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return node;
+  seen.add(node);
+  for (const [key, value] of Object.entries(node)) {
+    if (typeof value === "string") node[key] = unhang(value);
+    else if (value && typeof value === "object") fixHangingWords(value, seen);
+  }
+  return node;
+}
+
+[tasks, tools, channels, gapOptions, watchOptions, taskAction, taskMetrics, taskScenarios,
+ taskChannels, step3Consequence, step5Consequence, ui, final, anketa, system, pathMap]
+  .forEach((part) => fixHangingWords(part));
 
 // Удобный доступ к задаче по id.
 export const taskById = Object.fromEntries(tasks.map((t) => [t.id, t]));

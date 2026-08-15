@@ -459,7 +459,7 @@ function step2(ctx) {
   const list = el("div", { class: "tool-list" });
   const foot = nav(ctx, { nextLabel: state.refine ? t.refineButton : t.button });
 
-  const canAfford = (id) => state.tools.purchased.includes(id) || content.toolCost(id) <= content.budgetLeft(state);
+  const canAfford = (id) => content.toolCost(id) <= content.budgetLeft(state);
 
   function refresh() {
     const sel = state.tools.selected;
@@ -474,14 +474,12 @@ function step2(ctx) {
     wrap.querySelectorAll(".tool").forEach((c) => {
       const id = c.getAttribute("data-id");
       const on = sel.includes(id);
-      const afford = state.tools.purchased.includes(id) || content.toolCost(id) <= left;
+      const afford = content.toolCost(id) <= left;
       const blocked = !on && !afford;
       c.classList.toggle("blocked", blocked);
       c.disabled = blocked;
       const need = c.querySelector(".tool-need");
       if (need) need.textContent = blocked ? tpl(t.cantAffordTemplate, { n: content.toolCost(id) - left }) : "";
-      const free = c.querySelector(".tool-free");
-      if (free) free.style.display = (state.refine && state.tools.purchased.includes(id) && !on) ? "" : "none";
     });
     // Строка сборки: как выбранные инструменты работают вместе.
     chain.textContent = sel.length
@@ -502,8 +500,7 @@ function step2(ctx) {
         el("span", { class: "tool-cost" }, String(tool.cost))
       ),
       el("div", { class: "tool-explain" }, tool.explain),
-      el("span", { class: "tool-need" }),
-      el("span", { class: "tool-free", style: "display:none" }, "уже куплен, включается бесплатно")
+      el("span", { class: "tool-need" })
     );
     card.addEventListener("click", () => {
       const sel = state.tools.selected;
@@ -727,7 +724,7 @@ function step3(ctx) {
   // Анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
   function runBuild() {
     ctx.storage.track("pilot_test_started", { set: [...state.tools.selected], testNo: state.testCount + 1 });
-    if (state.testCount === 0) state.tools.purchased = [...state.tools.selected];
+    state.tools.testedSet = [...state.tools.selected];
     state.testCount = Math.min(state.testCount + 1, 2);
     ctx.update();
     const nodes = [...chainRow.querySelectorAll(".chain-node")];
@@ -819,10 +816,12 @@ function step3(ctx) {
   }
 
   renderChain();
-  // В раунде доработки нужен второй прогон: без него новый результат читался бы
-  // как продолжение старого экрана, а не как итог изменённой цепочки.
+  // Результат показываем только для той цепочки, которую прогоняли: любая смена
+  // инструментов требует нового теста, иначе экран говорил бы о прежнем наборе.
+  // В раунде доработки нужен второй прогон даже без замен: игрок правит промт.
   const runsDone = state.refine ? 2 : 1;
-  if (state.testCount >= runsDone) {
+  const testedNow = JSON.stringify(state.tools.testedSet || []) === JSON.stringify(state.tools.selected);
+  if (state.testCount >= runsDone && testedNow) {
     chainRow.querySelectorAll(".chain-node").forEach((n) => n.classList.add("lit"));
     freeform ? showCustomResult() : showResult();
   } else {
@@ -1278,8 +1277,18 @@ function final(ctx) {
 
   // ── Переход в анкету: вторичное текстовое действие, не primary и без «Назад».
   // Финал остаётся терминальным состоянием игры, поэтому nav() тут не используем.
+  // Начать сначала спрашивает подтверждение: на стенде промах по кнопке стоил бы
+  // игроку кода подарка, который показан выше на этом же экране.
+  const restart = el("button", { class: "link-action", type: "button" }, f.restart);
+  let restartArmed = false;
+  restart.addEventListener("click", () => {
+    if (!restartArmed) { restartArmed = true; restart.textContent = f.restartConfirm; return; }
+    ctx.restart();
+  });
+
   wrap.appendChild(el("div", { class: "final-anketa" },
-    el("button", { class: "link-action", type: "button", onclick: () => ctx.next() }, f.toAnketa)
+    el("button", { class: "link-action", type: "button", onclick: () => ctx.next() }, f.toAnketa),
+    restart
   ));
   return wrap;
 }
@@ -1305,7 +1314,7 @@ function anketa(ctx) {
   });
 
   const done = el("div", { class: "thanks", style: "display:none", role: "status", "aria-live": "polite" }, a.thanks);
-  const restart = el("button", { class: "ghost restart", style: "display:none", onclick: () => ctx.restart() }, "Пройти заново");
+  const restart = el("button", { class: "ghost restart", style: "display:none", onclick: () => ctx.restart() }, content.final.restart);
   let submitted = false;
   const submitBtn = el("button", {
     class: "primary",

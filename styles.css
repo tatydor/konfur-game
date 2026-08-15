@@ -277,7 +277,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 .tool.blocked .tool-cost { color: var(--muted); }
 .tool.hinted { border-color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
 .tool-need { display: block; margin-top: 6px; font-size: 0.78rem; color: var(--danger); }
-.tool-free { display: block; margin-top: 6px; font-size: 0.78rem; color: var(--accent); }
 .tool-actions { margin: 6px 0 2px; }
 .hint-note { color: var(--muted); font-size: 0.88rem; margin: 8px 0 0; }
 
@@ -472,7 +471,8 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 
 }
 
 /* Переход в анкету — низкоприоритетное текстовое действие, без рамки. */
-.final-anketa { margin-top: 18px; text-align: center; }
+.final-anketa { margin-top: 18px; text-align: center; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.final-anketa .link-action + .link-action { color: var(--muted); text-decoration-color: var(--line); }
 .link-action {
   background: none; border: none; padding: 8px; cursor: pointer;
   font: inherit; font-family: var(--font-display);
