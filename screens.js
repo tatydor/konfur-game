@@ -831,9 +831,9 @@ function step4(ctx) {
   const recoId = tc.reco[0];
   const wrap = el("div");
 
-  const locFor = () =>
-    content.channelById[state.publishChannel]?.loc || content.channelById[recoId]?.loc || t.location;
-  const head = header({ location: locFor(), title: t.title, intro: t.intro });
+  // Плашка шага постоянная: до выбора она не должна называть конкретный канал,
+  // иначе игрок читает рекомендацию как уже принятое решение.
+  const head = header({ location: t.location, title: t.title, intro: t.intro });
   wrap.appendChild(head);
   wrap.appendChild(el("p", { class: "reco-line" }, tc.text));
 
@@ -874,8 +874,6 @@ function step4(ctx) {
     ctx.update();
     ctx.storage.track("channel_selected", { channel: id, wasRecommended: tc.reco.includes(id) });
     ctx.storage.track("publication_selected", { channel: id, fit: content.publicationFitOf(state.task, id) });
-    const locEl = head.querySelector(".loc");
-    if (locEl) locEl.textContent = locFor();
     msg.textContent = "";
     showRequirements(id);
     renderBody();
