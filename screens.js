@@ -635,7 +635,7 @@ function step3(ctx) {
     footAction = action;
   }
 
-  const consequenceFor = (id) => task.check?.[id]?.consequence || content.step3Consequence[id];
+  const consequenceFor = (id, band) => task.check?.[id]?.[band] || content.step3Consequence[id];
 
   // Своя задача: результата в цифрах нет, показываем универсальные роли компонентов
   // и честную формулировку про следующий шаг. Ни бэндов, ни выдуманного эффекта.
@@ -690,7 +690,7 @@ function step3(ctx) {
         state.step3Choice = "enough"; state.refine = false; ctx.update();
         ctx.storage.track("test_decision", { decision: "enough", auto: true });
       }
-      consequence.textContent = consequenceFor("refine");
+      consequence.textContent = consequenceFor("refine", band);
       setFoot(t.button, () => ctx.next(), false);
       return;
     }
@@ -706,12 +706,12 @@ function step3(ctx) {
         return;
       }
       state.step3Choice = "enough"; state.refine = false; ctx.update();
-      consequence.textContent = consequenceFor("enough");
+      consequence.textContent = consequenceFor("enough", band);
       footBtn.disabled = false;
       ctx.storage.track("test_decision", { decision: "enough" });
     });
     stage.appendChild(fieldset(t.question, choice));
-    if (state.step3Choice === "enough") consequence.textContent = consequenceFor("enough");
+    if (state.step3Choice === "enough") consequence.textContent = consequenceFor("enough", band);
   }
 
   // Анимация сборки: узлы цепочки зажигаются по очереди, затем результат.
